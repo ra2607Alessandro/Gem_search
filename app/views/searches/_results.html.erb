@@ -1,0 +1,136 @@
+<% if search_results.any? %>
+  <div class="bg-white rounded-lg shadow">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <h3 class="text-lg font-semibold text-gray-900">Source Documents</h3>
+      <p class="text-sm text-gray-600 mt-1">
+        Found <%= search_results.count %> relevant sources
+      </p>
+    </div>
+
+    <div class="divide-y divide-gray-200">
+      <% search_results.each_with_index do |result, index| %>
+        <div class="px-6 py-6 hover:bg-gray-50 transition duration-150" id="source-<%= result.id %>">
+          <div class="flex items-start space-x-4">
+            <!-- Relevance Score -->
+            <div class="flex-shrink-0">
+              <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <span class="text-lg font-bold text-blue-600">#<%= index + 1 %></span>
+              </div>
+              <div class="text-xs text-gray-500 text-center mt-1">
+                <%= (result.relevance_score * 100).round(1) %>% relevant
+              </div>
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-start justify-between">
+                <div class="flex-1 min-w-0">
+                  <!-- Title -->
+                  <h4 class="text-lg font-medium text-gray-900 mb-2">
+                    <%= link_to result.document.title || 'Untitled Document',
+                              result.document.url,
+                              target: "_blank",
+                              rel: "noopener noreferrer",
+                              class: "hover:text-blue-600" %>
+                  </h4>
+
+                  <!-- URL -->
+                  <p class="text-sm text-green-600 mb-2 break-all">
+                    <%= result.document.url %>
+                  </p>
+
+                  <!-- Snippet/Content Preview -->
+                  <% if result.document.content.present? %>
+                    <div class="text-sm text-gray-700 mb-3 line-clamp-3">
+                      <%= truncate(strip_tags(result.document.content), length: 300) %>
+                    </div>
+                  <% end %>
+
+                  <!-- Citations -->
+                  <% if result.citations.any? %>
+                    <div class="mb-3">
+                      <h5 class="text-sm font-medium text-gray-900 mb-2">Key Citations:</h5>
+                      <div class="space-y-1">
+                        <% result.citations.each do |citation| %>
+                          <div class="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                            "<%= citation.snippet %>" - <%= citation.source_url %>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+
+                  <!-- Meta Information -->
+                  <div class="flex items-center text-xs text-gray-500 space-x-4">
+                    <span>Scraped <%= time_ago_in_words(result.document.scraped_at) %> ago</span>
+                    <% if result.document.content.present? %>
+                      <span><%= result.document.content.length %> characters</span>
+                    <% end %>
+                  </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="ml-4 flex-shrink-0 flex flex-col space-y-2">
+                  <%= link_to "View Full Content",
+                            result.document.url,
+                            target: "_blank",
+                            rel: "noopener noreferrer",
+                            class: "text-blue-600 hover:text-blue-800 text-sm font-medium" %>
+
+                  <% if result.document.content.present? && result.document.content.length > 300 %>
+                    <button class="text-gray-600 hover:text-gray-800 text-sm"
+                            onclick="toggleContent(this)">
+                      Show More
+                    </button>
+                  <% end %>
+                </div>
+              </div>
+
+              <!-- Expandable Full Content -->
+              <% if result.document.content.present? && result.document.content.length > 300 %>
+                <div class="mt-4 hidden" id="full-content-<%= result.id %>">
+                  <div class="border-l-4 border-gray-200 pl-4">
+                    <div class="text-sm text-gray-700 prose max-w-none">
+                      <%= simple_format(result.document.content) %>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% else %>
+  <!-- No Results Yet -->
+  <div class="bg-white rounded-lg shadow p-12 text-center">
+    <div class="text-gray-400 mb-4">
+      <svg class="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+    </div>
+    <h3 class="text-lg font-medium text-gray-900 mb-2">
+      <% if search.processing? %>
+        No results yet
+      <% elsif search.pending? %>
+        Search is pending
+      <% elsif search.failed? %>
+        Search failed
+      <% else %>
+        No results found
+      <% end %>
+    </h3>
+    <p class="text-gray-600">
+      <% if search.processing? %>
+        We're searching the web and analyzing content. Results will appear here shortly.
+      <% elsif search.pending? %>
+        Your search is queued for processing.
+      <% elsif search.failed? %>
+        Something went wrong with your search. Please try again.
+      <% else %>
+        No sources were found for your search query.
+      <% end %>
+    </p>
+  </div>
+<% end %>

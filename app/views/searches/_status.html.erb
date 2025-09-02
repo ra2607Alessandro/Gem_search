@@ -1,0 +1,71 @@
+<div class="bg-white rounded-lg shadow p-6 mb-6" data-controller="progress" data-progress-current-value="<%= calculate_progress(search) %>">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <% if search.processing? %>
+        <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" data-progress-target="spinner"></div>
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900" data-progress-target="status">Processing your search...</h3>
+          <p class="text-sm text-gray-600">
+            Gathering information from web sources
+          </p>
+        </div>
+      <% elsif search.completed? %>
+        <div class="rounded-full h-5 w-5 bg-green-500 flex items-center justify-center">
+          <svg class="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900" data-progress-target="status">Search completed!</h3>
+          <p class="text-sm text-gray-600">
+            Found <%= search.search_results.count %> relevant sources
+          </p>
+        </div>
+      <% elsif search.failed? %>
+        <div class="rounded-full h-5 w-5 bg-red-500 flex items-center justify-center">
+          <svg class="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900" data-progress-target="status">Search failed</h3>
+          <p class="text-sm text-gray-600">
+            Something went wrong. Please try again.
+          </p>
+        </div>
+      <% else %>
+        <div class="rounded-full h-5 w-5 bg-gray-400 flex items-center justify-center">
+          <svg class="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900" data-progress-target="status">Preparing search...</h3>
+          <p class="text-sm text-gray-600">
+            Initializing your search request
+          </p>
+        </div>
+      <% end %>
+    </div>
+
+    <% if search.search_results.any? %>
+      <div class="text-right">
+        <div class="text-2xl font-bold text-blue-600"><%= search.search_results.count %></div>
+        <div class="text-sm text-gray-600">sources found</div>
+      </div>
+    <% end %>
+  </div>
+
+  <!-- Progress Bar -->
+  <% if search.processing? || search.completed? %>
+    <div class="mt-4">
+      <div class="bg-gray-200 rounded-full h-2">
+        <div class="bg-blue-600 h-2 rounded-full transition-all duration-500" data-progress-target="bar" style="width: <%= calculate_progress(search) %>%"></div>
+      </div>
+      <div class="flex justify-between text-xs text-gray-500 mt-1">
+        <span>0%</span>
+        <span data-progress-target="percentage"><%= calculate_progress(search) %>%</span>
+      </div>
+    </div>
+  <% end %>
+</div>

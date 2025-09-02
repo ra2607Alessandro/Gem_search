@@ -1,4 +1,168 @@
-<div>
-  <h1 class="font-bold text-4xl">Searches#index</h1>
-  <p>Find me in app/views/searches/index.html.erb</p>
+<div class="min-h-screen bg-gray-50">
+  <div class="max-w-6xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-gray-900 mb-2">AI-Powered Search Assistant</h1>
+      <p class="text-lg text-gray-600">Get natural language answers with proper citations from web sources</p>
+    </div>
+
+    <!-- Search Form -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-8" id="search_form_container">
+      <%= form_with model: @search || Search.new,
+                   id: "search_form",
+                   class: "space-y-6",
+                   data: { controller: "search-form" } do |f| %>
+        <div class="space-y-4">
+          <!-- Main Query Field -->
+          <div>
+            <%= f.label :query, "What would you like to search for?", class: "block text-sm font-medium text-gray-700 mb-2" %>
+            <%= f.text_area :query,
+                          placeholder: "e.g., What are the benefits of renewable energy?",
+                          class: "w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none",
+                          rows: 2,
+                          required: true,
+                          maxlength: 1000,
+                          data: { "search-form-target": "query", field: "query", action: "input->search-form#autoExpand" } %>
+            <div class="flex justify-between items-center mt-1">
+              <p class="text-xs text-gray-500">Enter your main search question (required)</p>
+              <span class="text-xs text-gray-500" data-search-form-target="queryCount">0/1000</span>
+            </div>
+          </div>
+
+          <!-- Goal Context Field -->
+          <div>
+            <%= f.label :goal, "What's your goal or objective?", class: "block text-sm font-medium text-gray-700 mb-2" %>
+            <%= f.text_area :goal,
+                          placeholder: "e.g., I'm writing a research paper on climate change",
+                          class: "w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none",
+                          rows: 2,
+                          maxlength: 500,
+                          data: { "search-form-target": "goal", field: "goal", action: "input->search-form#autoExpand" } %>
+            <div class="flex justify-between items-center mt-1">
+              <p class="text-xs text-gray-500">Optional: Help us tailor the response to your needs</p>
+              <span class="text-xs text-gray-500" data-search-form-target="goalCount">0/500</span>
+            </div>
+          </div>
+
+          <!-- Rules/Suggestions Field -->
+          <div>
+            <%= f.label :rules, "Any specific rules or preferences?", class: "block text-sm font-medium text-gray-700 mb-2" %>
+            <%= f.text_area :rules,
+                          placeholder: "e.g., Focus on recent studies, avoid political opinions",
+                          class: "w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none",
+                          rows: 2,
+                          maxlength: 500,
+                          data: { "search-form-target": "rules", field: "rules", action: "input->search-form#autoExpand" } %>
+            <div class="flex justify-between items-center mt-1">
+              <p class="text-xs text-gray-500">Optional: Add constraints or preferences for your search</p>
+              <span class="text-xs text-gray-500" data-search-form-target="rulesCount">0/500</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="flex justify-center">
+          <%= f.submit "Search the Web",
+                     class: "bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                     data: { "search-form-target": "submit", disable_with: "Searching...", action: "click->search-form#submit" } %>
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Search Statistics -->
+    <% if @search_stats %>
+    <div class="bg-white rounded-lg shadow p-4 mb-8">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">Search Statistics</h3>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="text-center">
+          <div class="text-2xl font-bold text-blue-600"><%= @search_stats[:total] %></div>
+          <div class="text-sm text-gray-600">Total Searches</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold text-green-600"><%= @search_stats[:completed] %></div>
+          <div class="text-sm text-gray-600">Completed</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold text-yellow-600"><%= @search_stats[:processing] %></div>
+          <div class="text-sm text-gray-600">Processing</div>
+        </div>
+        <div class="text-center">
+          <div class="text-2xl font-bold text-red-600"><%= @search_stats[:failed] %></div>
+          <div class="text-sm text-gray-600">Failed</div>
+        </div>
+      </div>
+      <div class="mt-4 text-center">
+        <div class="text-sm text-gray-600">
+          Completion Rate: <span class="font-semibold"><%= @search_stats[:completion_rate] %>%</span>
+          | Last 24h: <span class="font-semibold"><%= @search_stats[:last_24h] %></span>
+        </div>
+      </div>
+    </div>
+    <% end %>
+
+    <!-- Search History -->
+    <div class="bg-white rounded-lg shadow">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900">Recent Searches</h3>
+      </div>
+
+      <% if @searches.any? %>
+        <div class="divide-y divide-gray-200">
+          <% @searches.each do |search| %>
+            <div class="px-6 py-4 hover:bg-gray-50 transition duration-150">
+              <div class="flex items-start justify-between">
+                <div class="flex-1 min-w-0">
+                  <!-- Search Query -->
+                  <div class="flex items-center space-x-2 mb-2">
+                    <h4 class="text-sm font-medium text-gray-900 truncate">
+                      <%= link_to search.query, search_path(search), class: "hover:text-blue-600" %>
+                    </h4>
+                    <!-- Status Badge -->
+                    <span class="<%= status_badge_class(search.status) %>">
+                      <%= search.status.titleize %>
+                    </span>
+                  </div>
+
+                  <!-- Goal and Rules (if present) -->
+                  <% if search.goal.present? %>
+                    <p class="text-sm text-gray-600 mb-1">
+                      <span class="font-medium">Goal:</span> <%= search.goal %>
+                    </p>
+                  <% end %>
+
+                  <% if search.rules.present? %>
+                    <p class="text-sm text-gray-600 mb-2">
+                      <span class="font-medium">Rules:</span> <%= search.rules %>
+                    </p>
+                  <% end %>
+
+                  <!-- Meta Information -->
+                  <div class="flex items-center text-xs text-gray-500 space-x-4">
+                    <span><%= time_ago_in_words(search.created_at) %> ago</span>
+                    <span><%= search.search_results.count %> sources</span>
+                    <% if search.user_ip %>
+                      <span>IP: <%= search.user_ip %></span>
+                    <% end %>
+                  </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="ml-4 flex-shrink-0">
+                  <%= link_to "View Results", search_path(search),
+                            class: "text-blue-600 hover:text-blue-800 text-sm font-medium" %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="px-6 py-12 text-center">
+          <div class="text-gray-500">
+            <p class="text-lg mb-2">No searches yet</p>
+            <p class="text-sm">Start your first search above to see results here</p>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
 </div>

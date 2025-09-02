@@ -8,6 +8,9 @@ Rails.application.routes.draw do
   # Search interface
   resources :searches, only: [:index, :create, :show] do
     resources :search_results, only: [:index]
+    member do
+      get :stream_status, to: 'searches#stream_search_status'
+    end
   end
   
   # API endpoints
