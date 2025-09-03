@@ -14,6 +14,9 @@ module SearchesHelper
     end
   end
 
+  def search_status_class(status)
+    status_badge_class(status)
+  end
 
   def search_status_icon(status)
     case status.to_sym

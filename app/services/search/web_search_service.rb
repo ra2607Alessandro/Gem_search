@@ -1,3 +1,5 @@
+require "httparty"
+
 class Search::WebSearchService
   include HTTParty
   base_uri 'https://serpapi.com'

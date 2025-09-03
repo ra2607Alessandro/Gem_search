@@ -51,6 +51,7 @@ gem "bootsnap", require: false
 gem 'neighbor'
 gem 'openai'
 gem 'faraday'
+gem "httparty"
 gem 'tiktoken_ruby'
 
 # Web Scraping and Content Processing (FIXED - removed problematic readability gem)
