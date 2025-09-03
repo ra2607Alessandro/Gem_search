@@ -14,10 +14,12 @@ class AiResponseGenerationJob < ApplicationJob
       if ai_response.present?
         # Store the AI response (you might want to add an ai_response field to Search model)
         # For now, we'll just log success and broadcast the update
-        Rails.logger.info "Successfully generated AI response for search #{search_id}"
+        search.update!(
+        ai_response: ai_response[:answer],
+        follow_up_questions: ai_response[:follow_ups],
+        status: :completed )
 
-        # Broadcast that AI response is ready
-        SearchesController.broadcast_ai_response_ready(search_id)
+     SearchesController.broadcast_ai_response_ready(search.id)
       else
         Rails.logger.warn "Failed to generate AI response for search #{search_id}"
       end

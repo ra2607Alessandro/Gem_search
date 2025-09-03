@@ -116,11 +116,12 @@ class SearchesController < ApplicationController
   end
 
   def prepare_ai_response_data
-    # This will be implemented when we build the AI response service
     @ai_response_data = {
       search_results: @search_results,
       total_sources: @search_results.count,
-      top_sources: @search_results.limit(5)
+      top_sources: @search_results.limit(5),
+      response: @search.ai_response,
+      follow_up_questions: @search.follow_up_questions
     }
   end
 

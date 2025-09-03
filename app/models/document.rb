@@ -7,7 +7,7 @@ class Document < ApplicationRecord
   
   validates :url, presence: true, uniqueness: true
   validates :title, presence: true
-  validates :content, presence: true
+  validates :content, presence: true, if: -> { scraped_at.present? }
   
   scope :with_embeddings, -> { where.not(embedding: nil) }
   

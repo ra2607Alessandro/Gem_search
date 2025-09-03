@@ -9,8 +9,8 @@ class SearchProcessingJob < ApplicationJob
       search = Search.find(search_id)
       Rails.logger.info "Starting search processing for search #{search_id}: #{search.query}"
 
-      # Update status to processing
-      search.update!(status: :processing)
+      # Update status to scraping
+      search.update!(status: :scraping)
 
       # Step 1: Perform web search
       search_results = perform_web_search(search)
@@ -22,12 +22,8 @@ class SearchProcessingJob < ApplicationJob
       # Step 3: Create search results with relevance scores
       create_search_results(search, processed_urls, search_results)
 
-      # Step 4: Generate AI response
-      generate_ai_response(search)
-
-      # Step 5: Mark search as completed
-      search.update!(status: :completed)
-      Rails.logger.info "Completed search processing for search #{search_id}"
+      # Step 4: AI response will be generated after all scraping completes
+      Rails.logger.info "Completed search processing for search #{search_id}, waiting for scraping to finish"
 
     rescue ActiveRecord::RecordNotFound
       Rails.logger.error "Search #{search_id} not found"
@@ -154,9 +150,5 @@ class SearchProcessingJob < ApplicationJob
     (base_score ** curve_factor).round(4)
   end
 
-  def generate_ai_response(search)
-    # Queue AI response generation
-    AiResponseGenerationJob.perform_later(search.id)
-    Rails.logger.info "Queued AI response generation for search #{search.id}"
-  end
+
 end

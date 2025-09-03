@@ -62,7 +62,14 @@
 
                   <!-- Meta Information -->
                   <div class="flex items-center text-xs text-gray-500 space-x-4">
-                    <span>Scraped <%= time_ago_in_words(result.document.scraped_at) %> ago</span>
+                  <span>
+                  Scraped
+                  <% if result.document.scraped_at.present? %>
+                    <%= time_ago_in_words(result.document.scraped_at) %> ago
+                  <% else %>
+                    (unknown time)
+                  <% end %>
+                </span>
                     <% if result.document.content.present? %>
                       <span><%= result.document.content.length %> characters</span>
                     <% end %>

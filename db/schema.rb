@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_09_02_111023) do
+ActiveRecord::Schema[8.0].define(version: 2025_09_03_171333) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "vector"
@@ -51,6 +51,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_09_02_111023) do
     t.integer "status"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "ai_response"
+    t.jsonb "follow_up_questions"
   end
 
   add_foreign_key "citations", "search_results"

@@ -21,10 +21,13 @@ class WebScrapingJob < ApplicationJob
       # Step 2: Update document with scraped content
       update_document_with_content(document, scraped_data)
 
-      # Step 3: Generate embeddings
+      # Step 3: Check if all documents are scraped, trigger AI generation if complete
+      Scraping::ScrapingCompletionService.check(search_id)
+
+      # Step 4: Generate embeddings
       generate_and_store_embeddings(document)
 
-      # Step 4: Update search result with improved relevance score
+      # Step 5: Update search result with improved relevance score
       update_search_result_relevance(search, document, position, scraped_data)
 
       Rails.logger.info "Completed web scraping for document #{document_id}"
