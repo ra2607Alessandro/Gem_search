@@ -23,6 +23,10 @@ default: &default
 development:
   <<: *default
   database: gem_search_development
+  username: gem_search
+  password: your_password
+  host: localhost
+  port: 5432
 
   # The specified database role being used to connect to PostgreSQL.
   # To create additional roles in PostgreSQL see `$ createuser --help`.
@@ -81,9 +85,9 @@ test:
 production:
   primary: &primary_production
     <<: *default
-    database: gem_search_production
-    username: gem_search
-    password: <%= ENV["GEM_SEARCH_DATABASE_PASSWORD"] %>
+    username: <%= ENV['PG_USER'] %>
+    password: <%= ENV['PG_PASSWORD'] %>
+    database: <%= ENV['PG_DATABASE'] %>
   cache:
     <<: *primary_production
     database: gem_search_production_cache

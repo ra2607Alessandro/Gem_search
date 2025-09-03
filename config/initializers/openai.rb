@@ -1,5 +1,5 @@
-require "openai" 
-OpenAI.configure do |config|
-  config.access_token = ENV.fetch('OPENAI_API_KEY', '')
-  config.log_errors = Rails.env.development?
+require "openai"
+
+Rails.application.config.after_initialize do
+  $openai_client = OpenAI::Client.new(api_key: ENV['OPENAI_API_KEY'])
 end
