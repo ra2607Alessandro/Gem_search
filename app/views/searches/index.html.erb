@@ -11,8 +11,10 @@
       <%= form_with model: @search || Search.new,
                    id: "search_form",
                    class: "space-y-6",
-                   data: { controller: "search-form" } do |f| %>
-        <div class="space-y-4">
+                   data: { controller: "search-form", action: "submit->search-form#submit" } do |f| %>
+        <%= render partial: "searches/form_fields", locals: { f: f } %>
+      <% end %>
+    </div>
           <!-- Main Query Field -->
           <div>
             <%= f.label :query, "What would you like to search for?", class: "block text-sm font-medium text-gray-700 mb-2" %>
@@ -100,22 +102,26 @@
     </div>
     <% end %>
 
-    <!-- Search History -->
+      <!-- Recent Searches -->
     <div class="bg-white rounded-lg shadow">
       <div class="px-6 py-4 border-b border-gray-200">
         <h3 class="text-lg font-semibold text-gray-900">Recent Searches</h3>
       </div>
 
       <% if @searches.any? %>
-        <div class="divide-y divide-gray-200">
-          <% @searches.each do |search| %>
-            <div class="px-6 py-4 hover:bg-gray-50 transition duration-150">
-              <div class="flex items-start justify-between">
-                <div class="flex-1 min-w-0">
-                  <!-- Search Query -->
-                  <div class="flex items-center space-x-2 mb-2">
-                    <h4 class="text-sm font-medium text-gray-900 truncate">
-                      <%= link_to search.query, search_path(search), class: "hover:text-blue-600" %>
+    <div class="bg-white rounded-lg shadow p-6">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">Recent Searches</h2>
+      <div class="space-y-3" id="searches_list">
+        <% @searches.each do |search| %>
+          <%= render partial: "searches/search_item", locals: { search: search } %>
+        <% end %>
+          </div>
+            </div>
+              <% end %>
+          <!-- Search Query -->
+            <div class="flex items-center space-x-2 mb-2">
+                <h4 class="text-sm font-medium text-gray-900 truncate">
+                 <%= link_to search.query, search_path(search), class: "hover:text-blue-600" %>
                     </h4>
                     <!-- Status Badge -->
                     <span class="<%= status_badge_class(search.status) %>">
@@ -153,16 +159,16 @@
                 </div>
               </div>
             </div>
-          <% end %>
+         
         </div>
-      <% else %>
+      
         <div class="px-6 py-12 text-center">
           <div class="text-gray-500">
             <p class="text-lg mb-2">No searches yet</p>
             <p class="text-sm">Start your first search above to see results here</p>
           </div>
         </div>
-      <% end %>
+      
     </div>
   </div>
 </div>

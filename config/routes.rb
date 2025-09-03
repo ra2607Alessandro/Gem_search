@@ -2,8 +2,7 @@ Rails.application.routes.draw do
   # Health check
   get "up" => "rails/health#show", as: :rails_health_check
   
-  # Root route
-  root 'home#index'
+ 
   
   # Search interface
   resources :searches, only: [:index, :create, :show] do
@@ -23,4 +22,5 @@ Rails.application.routes.draw do
   # PWA routes (optional)
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
+  root 'home#index'
 end

@@ -89,6 +89,9 @@ export default class extends Controller {
 
   // Handle form submission
   submit(event) {
+    // Prevent default form submission to handle validation first
+    event.preventDefault()
+
     if (!this.validate(event)) return
 
     // Disable form and show loading state
@@ -98,6 +101,8 @@ export default class extends Controller {
     this.autoExpand({ target: this.queryTarget })
     if (this.goalTarget.value) this.autoExpand({ target: this.goalTarget })
     if (this.rulesTarget.value) this.autoExpand({ target: this.rulesTarget })
+
+      this.element.requestSubmit()
   }
 
   // Set loading state

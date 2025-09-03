@@ -1,0 +1,54 @@
+<div class="space-y-4">
+  <!-- Main Query Field -->
+  <div>
+    <%= f.label :query, "What would you like to search for?", class: "block text-sm font-medium text-gray-700 mb-2" %>
+    <%= f.text_area :query,
+                  placeholder: "e.g., What are the benefits of renewable energy?",
+                  class: "w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none",
+                  rows: 2,
+                  required: true,
+                  maxlength: 1000,
+                  data: { "search-form-target": "query", field: "query", action: "input->search-form#autoExpand" } %>
+    <div class="flex justify-between items-center mt-1">
+      <p class="text-xs text-gray-500">Enter your main search question (required)</p>
+      <span class="text-xs text-gray-500" data-search-form-target="queryCount">0/1000</span>
+    </div>
+  </div>
+
+  <!-- Goal Context Field -->
+  <div>
+    <%= f.label :goal, "What's your goal or objective?", class: "block text-sm font-medium text-gray-700 mb-2" %>
+    <%= f.text_area :goal,
+                  placeholder: "e.g., I'm writing a research paper on climate change",
+                  class: "w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none",
+                  rows: 2,
+                  maxlength: 500,
+                  data: { "search-form-target": "goal", field: "goal", action: "input->search-form#autoExpand" } %>
+    <div class="flex justify-between items-center mt-1">
+      <p class="text-xs text-gray-500">Optional: Help us tailor the response to your needs</p>
+      <span class="text-xs text-gray-500" data-search-form-target="goalCount">0/500</span>
+    </div>
+  </div>
+
+  <!-- Rules/Suggestions Field -->
+  <div>
+    <%= f.label :rules, "Any specific rules or preferences?", class: "block text-sm font-medium text-gray-700 mb-2" %>
+    <%= f.text_area :rules,
+                  placeholder: "e.g., Focus on recent studies, avoid political opinions",
+                  class: "w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none",
+                  rows: 2,
+                  maxlength: 500,
+                  data: { "search-form-target": "rules", field: "rules", action: "input->search-form#autoExpand" } %>
+    <div class="flex justify-between items-center mt-1">
+      <p class="text-xs text-gray-500">Optional: Add constraints or preferences for your search</p>
+      <span class="text-xs text-gray-500" data-search-form-target="rulesCount">0/500</span>
+    </div>
+  </div>
+</div>
+
+<!-- Submit Button -->
+<div class="flex justify-center">
+  <%= f.submit "Search the Web",
+             class: "bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+             data: { "search-form-target": "submit", disable_with: "Searching..." } %>
+</div>

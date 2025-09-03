@@ -98,9 +98,9 @@ class SearchesController < ApplicationController
 
   def calculate_search_stats
     total_searches = Search.count
-    completed_searches = Search.completed.count
-    processing_searches = Search.processing.count
-    failed_searches = Search.failed.count
+    completed_searches = Search.where(status: :completed).count
+    processing_searches = Search.where(status: :processing).count
+    failed_searches = Search.where(status: :failed).count
 
     recent_searches = Search.where('created_at >= ?', 24.hours.ago)
     searches_last_24h = recent_searches.count
@@ -111,8 +111,8 @@ class SearchesController < ApplicationController
       processing: processing_searches,
       failed: failed_searches,
       last_24h: searches_last_24h,
-      completion_rate: total_searches > 0 ? (completed_searches.to_f / total_searches * 100).round(1) : 0
-    }
+
+      completion_rate: total_searches > 0 ? (completed_searches.to_f / total_searches * 100).round(1) : 0    }
   end
 
   def prepare_ai_response_data

@@ -1,0 +1,20 @@
+<div class="border-b border-gray-200 pb-3 last:border-b-0">
+  <%= link_to search, class: "block hover:bg-gray-50 -mx-2 px-2 py-1 rounded transition duration-150" do %>
+    <div class="flex justify-between items-start">
+      <div class="flex-1">
+        <h3 class="font-medium text-gray-900"><%= truncate(search.query, length: 100) %></h3>
+        <% if search.goal.present? %>
+          <p class="text-sm text-gray-600 mt-1">Goal: <%= truncate(search.goal, length: 80) %></p>
+        <% end %>
+      </div>
+      <div class="flex items-center space-x-2 ml-4">
+        <span class="text-xs px-2 py-1 rounded-full <%= search_status_class(search.status) %>">
+          <%= search.status.humanize %>
+        </span>
+        <span class="text-xs text-gray-500">
+          <%= time_ago_in_words(search.created_at) %> ago
+        </span>
+      </div>
+    </div>
+  <% end %>
+</div>
