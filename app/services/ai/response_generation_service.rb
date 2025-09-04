@@ -94,9 +94,13 @@ class Ai::ResponseGenerationService
   def call_openai_api(context)
     # Use the global client
     client = $openai_client
-    
+
+    # Add logging to check if client is initialized
+    Rails.logger.info "OpenAI client initialized: #{client.present?}"
+    Rails.logger.info "API Key present: #{ENV['OPENAI_API_KEY'].present?}"
+
     messages = build_messages(context)
-    
+
     response = client.chat(
     parameters: {
       model: MODEL,
@@ -107,12 +111,13 @@ class Ai::ResponseGenerationService
       frequency_penalty: 0.1
     }
   )
-    
+
 
     response.dig('choices', 0, 'message', 'content')
-  
+
     rescue => e
       Rails.logger.error "OpenAI client error: #{e.message}"
+      Rails.logger.error "Full error: #{e.inspect}"
        nil
     end
 

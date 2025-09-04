@@ -1,29 +1,35 @@
-<% if @search.completed? && @ai_response_data %>
+<% if search&.completed? && search.ai_response.present? %>
   <div class="bg-white rounded-lg shadow p-6 mb-6">
     <h3 class="text-xl font-semibold text-gray-900 mb-4">AI Response</h3>
 
-    <% if @ai_response_data[:response].present? %>
-      <div class="prose max-w-none mb-6">
-        <%= simple_format(@ai_response_data[:response]) %>
-      </div>
+    <div class="prose max-w-none mb-6">
+      <%= simple_format(search.ai_response) %>
+    </div>
 
-      <% if @ai_response_data[:follow_up_questions]&.any? %>
-        <div class="bg-blue-50 border-l-4 border-blue-400 p-4">
-          <h4 class="text-lg font-medium text-blue-900 mb-3">Follow-up Questions</h4>
-          <ul class="space-y-2">
-            <% @ai_response_data[:follow_up_questions].each do |question| %>
-              <li class="text-blue-800">
-                <span class="mr-2">💡</span>
-                <%= question %>
-              </li>
-            <% end %>
-          </ul>
-        </div>
-      <% end %>
-    <% else %>
-      <div class="text-gray-600 italic text-center py-8">
-        🤖 AI response is being generated... Please check back in a moment.
+    <% if search.follow_up_questions&.any? %>
+      <div class="bg-blue-50 border-l-4 border-blue-400 p-4">
+        <h4 class="text-lg font-medium text-blue-900 mb-3">Follow-up Questions</h4>
+        <ul class="space-y-2">
+          <% search.follow_up_questions.each do |question| %>
+            <li class="text-blue-800">
+              <span class="mr-2">💡</span>
+              <%= question %>
+            </li>
+          <% end %>
+        </ul>
       </div>
+    <% end %>
+  </div>
+<% else %>
+  <div class="text-gray-600 italic text-center py-8">
+    <% if search&.scraping? %>
+      🕒 Gathering information from sources...
+    <% elsif search&.processing? %>
+      🤖 AI response is being generated... Please check back in a moment.
+    <% elsif search&.failed? %>
+      ❌ Failed to generate response. Please try again.
+    <% else %>
+      ⏳ Processing your search...
     <% end %>
   </div>
 <% end %>

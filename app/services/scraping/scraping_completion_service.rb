@@ -13,12 +13,10 @@ class Scraping::ScrapingCompletionService
       if search.scraping?
         AiResponseGenerationJob.perform_later(search_id)
       else
-         Rails.logger.warn "Scraping complete for search #{search_id}, but status is '#{search.status}'. AI response will not be triggered."
-        end
-      else
-        document_ids = unscraped_documents.pluck(:id)
-            Rails.logger.info "Search #{search_id} still has #{unscraped_count} documents to scrape. Waiting for document IDs: #{document_ids.join(', ')}"
-
-          end
+        Rails.logger.warn "Scraping complete for search #{search_id}, but status is '#{search.status}'. AI response will not be triggered."
       end
+    else
+      document_ids = unscraped_documents.pluck(:id)
+      Rails.logger.info "Search #{search_id} still has #{unscraped_count} documents to scrape. Waiting for document IDs: #{document_ids.join(', ')}"
+    end
   end

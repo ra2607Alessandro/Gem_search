@@ -209,11 +209,25 @@ class SearchesController < ApplicationController
   end
 
   def broadcast_ai_response(search)
+    # Prepare the same data structure as in the show action
+    search_results = search.search_results.includes(:document).ordered_by_relevance
+
+    ai_response_data = {
+      search_results: search_results,
+      total_sources: search_results.count,
+      top_sources: search_results.limit(5),
+      response: search.ai_response,
+      follow_up_questions: search.follow_up_questions
+    }
+
     Turbo::StreamsChannel.broadcast_replace_to(
       "search_#{search.id}",
       target: "ai_response",
       partial: "searches/ai_response",
-      locals: { search: search }
+      locals: {
+        search: search,
+        ai_response_data: ai_response_data
+      }
     )
   end
 
