@@ -28,6 +28,8 @@ module SearchesHelper
       "❌"
     when :pending
       "⏳"
+    when :scraping
+      "🕒"
     else
       "❓"
     end
