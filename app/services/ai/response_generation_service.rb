@@ -1,6 +1,6 @@
 class Ai::ResponseGenerationService
   MAX_TOKENS = 4000
-  MODEL = 'gpt-4-turbo-preview'
+  MODEL = 'gpt-3.5-turbo'
 
   def initialize(search)
     @search = search
@@ -28,7 +28,7 @@ class Ai::ResponseGenerationService
 
       Rails.logger.info "Successfully generated AI response for search #{@search.id}"
 
-      processed_response[:response]
+      processed_response
 
     rescue StandardError => e
       Rails.logger.error "AI response generation failed for search #{@search.id}: #{e.message}"
@@ -90,32 +90,28 @@ class Ai::ResponseGenerationService
   end
 
   def call_openai_api(context)
-    client = OpenAI::Client.new
-
+    client = OpenAI::Client.new(access_token: ENV['OPENAI_API_KEY'])
+    
     messages = build_messages(context)
-
+    
     response = client.chat(
       parameters: {
-        model: MODEL,
+        model: 'gpt-3.5-turbo', # Use a model that definitely exists
         messages: messages,
         max_tokens: MAX_TOKENS,
-        temperature: 0.3, # Lower temperature for more factual responses
+        temperature: 0.3,
         presence_penalty: 0.1,
         frequency_penalty: 0.1
       }
     )
+    
 
-    if response.success?
-      response.dig('choices', 0, 'message', 'content')
-    else
-      Rails.logger.error "OpenAI API error: #{response.dig('error', 'message')}"
-      nil
+    response.dig('choices', 0, 'message', 'content')
+  
+    rescue OpenAI::Error => e
+     Rails.logger.error "OpenAI client error: #{e.message}"
+     nil
     end
-
-  rescue OpenAI::Error => e
-    Rails.logger.error "OpenAI client error: #{e.message}"
-    nil
-  end
 
   def build_messages(context)
     system_prompt = build_system_prompt
