@@ -49,7 +49,7 @@ gem "bootsnap", require: false
 
 # AI and Vector Search
 gem 'neighbor'
-gem 'openai'
+gem 'openai', '~> 0.22.0'
 gem 'faraday'
 gem "httparty"
 gem 'tiktoken_ruby'

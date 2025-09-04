@@ -1,3 +1,5 @@
+require "openai"
+
 class Ai::ResponseGenerationService
   MAX_TOKENS = 4000
   MODEL = 'gpt-3.5-turbo'
@@ -90,27 +92,28 @@ class Ai::ResponseGenerationService
   end
 
   def call_openai_api(context)
-    client = OpenAI::Client.new(access_token: ENV['OPENAI_API_KEY'])
+    # Use the global client
+    client = $openai_client
     
     messages = build_messages(context)
     
     response = client.chat(
-      parameters: {
-        model: 'gpt-3.5-turbo', # Use a model that definitely exists
-        messages: messages,
-        max_tokens: MAX_TOKENS,
-        temperature: 0.3,
-        presence_penalty: 0.1,
-        frequency_penalty: 0.1
-      }
-    )
+    parameters: {
+      model: MODEL,
+      messages: messages,
+      max_tokens: MAX_TOKENS,
+      temperature: 0.3,
+      presence_penalty: 0.1,
+      frequency_penalty: 0.1
+    }
+  )
     
 
     response.dig('choices', 0, 'message', 'content')
   
-    rescue OpenAI::Error => e
-     Rails.logger.error "OpenAI client error: #{e.message}"
-     nil
+    rescue => e
+      Rails.logger.error "OpenAI client error: #{e.message}"
+       nil
     end
 
   def build_messages(context)

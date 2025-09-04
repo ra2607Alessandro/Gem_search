@@ -18,6 +18,13 @@ Rails.application.routes.draw do
       resources :searches, only: [:create, :show]
     end
   end
+
+  resources :searches, only: [:index, :show, :create]
+
+  namespace :admin do
+    get 'searches', to: 'searches#index'
+    root to: 'searches#index'
+  end
   
   # PWA routes (optional)
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest

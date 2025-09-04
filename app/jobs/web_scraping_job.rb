@@ -16,21 +16,22 @@ class WebScrapingJob < ApplicationJob
 
       # Step 1: Scrape content
       scraped_data = scrape_content(document.url)
-      return unless scraped_data[:success]
 
-      # Step 2: Update document with scraped content
+      # Step 2: Update document with scraped content, even on failure
       update_document_with_content(document, scraped_data)
 
       # Step 3: Check if all documents are scraped, trigger AI generation if complete
       Scraping::ScrapingCompletionService.check(search_id)
 
-      # Step 4: Generate embeddings
-      generate_and_store_embeddings(document)
+      if scraped_data[:success]
+        # Step 4: Generate embeddings (only if scraping was successful)
+        generate_and_store_embeddings(document)
 
-      # Step 5: Update search result with improved relevance score
-      update_search_result_relevance(search, document, position, scraped_data)
+        # Step 5: Update search result with improved relevance score
+        update_search_result_relevance(search, document, position, scraped_data)
+      end
 
-      Rails.logger.info "Completed web scraping for document #{document_id}"
+      Rails.logger.info "Completed web scraping job for document #{document_id}"
 
     rescue ActiveRecord::RecordNotFound => e
       Rails.logger.error "Record not found during scraping: #{e.message}"
@@ -69,11 +70,12 @@ class WebScrapingJob < ApplicationJob
   def update_document_with_content(document, scraped_data)
     document.update!(
       title: scraped_data[:title].presence || document.title,
-      content: scraped_data[:content],
+      # Use empty string as fallback to ensure content is not nil
+      content: scraped_data.fetch(:content, ''),
       scraped_at: Time.current
     )
 
-    Rails.logger.info "Updated document #{document.id} with scraped content"
+    Rails.logger.info "Updated document #{document.id} with scraped content (success: #{scraped_data[:success]})"
   end
 
   def generate_and_store_embeddings(document)
