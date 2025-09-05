@@ -2,7 +2,7 @@ require "openai"
 
 class Ai::ResponseGenerationService
   MAX_TOKENS = 4000
-  MODEL = 'gpt-3.5-turbo'
+  MODEL = 'gpt-3.5-turbo-16k'
 
   def initialize(search)
     @search = search
@@ -43,27 +43,28 @@ class Ai::ResponseGenerationService
   attr_reader :search
 
   def valid_search?
-    search.present? && search.completed? && search.search_results.any?
+    search.present? &&
+    search.search_results.any? &&
+    search.documents.where.not(content: [nil, '']).exists?
   end
 
   def prepare_context
-    # Get top search results with content
-    top_results = search.search_results
-                        .includes(:document)
-                        .ordered_by_relevance
-                        .limit(8) # Limit to avoid token overflow
+    # Get top search results with content using semantic search
+    top_documents = Document.semantic_search(search.query_embedding, limit: 8)
 
     # Prepare sources with numbered references
     sources = []
-    top_results.each_with_index do |result, index|
-      next unless result.document&.content.present?
+    top_documents.each_with_index do |document, index|
+      next unless document.content.present?
+      search_result = search.search_results.find_by(document: document)
+      next unless search_result
 
       source = {
         number: index + 1,
-        title: result.document.title,
-        url: result.document.url,
-        content: truncate_content(result.document.content, 1000), # Limit content per source
-        search_result: result
+        title: document.title,
+        url: document.url,
+        content: truncate_content(document.content, 1000), # Limit content per source
+        search_result: search_result
       }
       sources << source
     end
@@ -75,6 +76,9 @@ class Ai::ResponseGenerationService
       sources: sources,
       total_sources: sources.length
     }
+
+    
+
   end
 
   def truncate_content(content, max_length)

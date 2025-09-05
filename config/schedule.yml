@@ -1,0 +1,5 @@
+stale_search_job:
+  cron: "*/2 * * * *" # Runs every 2 minutes
+  class: "StaleSearchProcessingJob"
+  queue: "low"
+  description: "Finds searches that are stuck in the 'scraping' status and attempts to recover them."

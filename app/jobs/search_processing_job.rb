@@ -9,6 +9,9 @@ class SearchProcessingJob < ApplicationJob
       search = Search.find(search_id)
       Rails.logger.info "Starting search processing for search #{search_id}: #{search.query}"
 
+      # Generate and save query embedding
+      generate_query_embedding(search)
+
       # Update status to scraping
       search.update!(status: :scraping)
 
@@ -43,6 +46,21 @@ class SearchProcessingJob < ApplicationJob
   end
 
   private
+
+  def generate_query_embedding(search)
+    return if search.query_embedding.present?
+
+    Rails.logger.info "Generating query embedding for search #{search.id}"
+    embedding_service = Ai::EmbeddingService.new(search.query)
+    embedding = embedding_service.call
+
+    if embedding.present?
+      search.update!(query_embedding: embedding)
+      Rails.logger.info "Successfully generated and saved query embedding for search #{search.id}"
+    else
+      Rails.logger.warn "Failed to generate query embedding for search #{search.id}"
+    end
+  end
 
   def perform_web_search(search)
     Rails.logger.info "Performing web search for: #{search.query}"
@@ -118,26 +136,36 @@ class SearchProcessingJob < ApplicationJob
   end
 
   def create_search_results(search, processed_urls, search_results)
-    Rails.logger.info "Creating search results for #{processed_urls.length} documents"
-
+   Rails.logger.info "Creating search results for #{processed_urls.length} documents"
+  
     processed_urls.each do |processed_url|
-      document = processed_url[:document]
-      position = processed_url[:position]
+      # ... existing code ...
+    document = processed_url[:document]
+    position = processed_url[:position]
 
-      # Calculate initial relevance score based on search position
-      relevance_score = calculate_relevance_score(position, search_results.length)
+    # Calculate initial relevance score based on search position
+    relevance_score = calculate_relevance_score(position, search_results.length)
 
-      # Create search result record
-      search_result = SearchResult.find_or_initialize_by(
-        search: search,
-        document: document
-      )
+    # Create search result record
+    search_result = SearchResult.find_or_initialize_by(
+      search: search,
+      document: document
+    )
 
-      search_result.relevance_score = relevance_score
-      search_result.save!
+    search_result.relevance_score = relevance_score
+    search_result.save!
 
-      Rails.logger.info "Created search result for document #{document.id} with score #{relevance_score}"
+    Rails.logger.info "Created search result for document #{document.id} with score #{relevance_score}"
+    
     end
+    
+    # Store expected document count for verification
+    search.update!(
+      expected_documents_count: processed_urls.length,
+      updated_at: Time.current
+    )
+    
+    Rails.logger.info "Search #{search.id} expects #{processed_urls.length} documents to be scraped"
   end
 
   def calculate_relevance_score(position, total_results)

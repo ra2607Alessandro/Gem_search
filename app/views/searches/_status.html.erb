@@ -30,8 +30,23 @@
         <div>
           <h3 class="text-lg font-semibold text-gray-900" data-progress-target="status">Search failed</h3>
           <p class="text-sm text-gray-600">
-            Something went wrong. Please try again.
+            <%= search.error_message || "Something went wrong. Please try again." %>
           </p>
+        </div>
+      <% elsif search.scraping? %>
+        <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" data-progress-target="spinner"></div>
+        <div>
+            <h3 class="text-lg font-semibold text-gray-900" data-progress-target="status">Gathering information from sources...</h3>
+            <% scraped_count = search.documents.where.not(scraped_at: nil).count %>
+            <% total_count = search.documents.count %>
+            <p class="text-sm text-gray-600">
+              Scraping sources: <%= scraped_count %> of <%= total_count %> completed.
+            </p>
+            <% if total_count > 0 && scraped_count == total_count && search.updated_at < 30.seconds.ago %>
+              <p class="text-sm text-orange-600 mt-1">
+                Processing appears to be stuck. Trying to recover...
+              </p>
+            <% end %>
         </div>
       <% else %>
         <div class="rounded-full h-5 w-5 bg-gray-400 flex items-center justify-center">
@@ -66,6 +81,15 @@
         <span>0%</span>
         <span data-progress-target="percentage"><%= calculate_progress(search) %>%</span>
       </div>
+    </div>
+  <% end %>
+
+  <% if search.failed? && search.documents.where.not(content: [nil, '']).exists? %>
+    <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+      <p class="text-sm text-yellow-800">
+        Some content was gathered before the error occurred. You can try to
+        <%= link_to 'force AI response generation', retry_ai_generation_search_path(search), method: :post, class: "font-semibold underline hover:text-yellow-900" %>.
+      </p>
     </div>
   <% end %>
 </div>

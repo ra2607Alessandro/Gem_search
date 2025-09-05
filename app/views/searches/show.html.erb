@@ -46,7 +46,7 @@
 
     <!-- AI Response Section -->
     <%= turbo_frame_tag "ai_response" do %>
-      <%= render 'ai_response' %>
+      <%= render 'ai_response', search: @search %>
     <% end %>
 
     <!-- Search Results -->

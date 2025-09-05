@@ -51,7 +51,7 @@ class Scraping::ContentScraperService
       agent.follow_meta_refresh = true
       agent.redirect_ok = true
       agent.max_history      = 2
-      agent.redirection_limit  = 5
+      
 
       # Enable cookies for JavaScript-heavy sites
       agent.cookie_jar = Mechanize::CookieJar.new

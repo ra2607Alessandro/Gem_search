@@ -37,3 +37,5 @@ class AiResponseGenerationJob < ApplicationJob
       search.update!(status: :failed)
     end
   end
+end
+

@@ -73,6 +73,26 @@ class SearchesController < ApplicationController
     end
   end
 
+  def retry_ai_generation
+    @search = Search.find(params[:id])
+    
+    if @search.scraping? || @search.failed?
+      documents_with_content = @search.documents.where.not(content: [nil, ''])
+      
+      if documents_with_content.exists?
+        Rails.logger.info "Manual retry triggered for search #{@search.id}. Found #{documents_with_content.count} documents with content."
+        # To ensure it gets processed, we update its status and timestamp
+        @search.update(status: :scraping, updated_at: Time.current)
+        AiResponseGenerationJob.perform_later(@search.id)
+        redirect_to @search, notice: 'AI response generation has been manually triggered. The page will update shortly.'
+      else
+        redirect_to @search, alert: 'Cannot generate AI response: No content has been successfully scraped.'
+      end
+    else
+      redirect_to @search, alert: "AI response can only be retried for 'scraping' or 'failed' searches."
+    end
+  end
+
   private
 
   def search_params

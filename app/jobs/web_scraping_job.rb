@@ -68,6 +68,8 @@ class WebScrapingJob < ApplicationJob
   end
 
   def update_document_with_content(document, scraped_data)
+      # Only set content if scraping was successful
+    content = scraped_data[:success] ? scraped_data[:content] : nil
     document.update!(
       title: scraped_data[:title].presence || document.title,
       # Use empty string as fallback to ensure content is not nil
@@ -75,7 +77,7 @@ class WebScrapingJob < ApplicationJob
       scraped_at: Time.current
     )
 
-    Rails.logger.info "Updated document #{document.id} with scraped content (success: #{scraped_data[:success]})"
+    Rails.logger.info "Updated document #{document.id} (success: #{scraped_data[:success]}, content: #{content.present?})"
   end
 
   def generate_and_store_embeddings(document)
