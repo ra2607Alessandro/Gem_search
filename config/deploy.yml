@@ -34,7 +34,14 @@ registry:
 # Inject ENV variables into containers (secrets come from .kamal/secrets).
 env:
   secret:
-    - RAILS_MASTER_KEY
+    - RAILS_LOG_TO_STDOUT
+    - SERPAPI_KEY        # Add this
+    - OPENAI_API_KEY
+    - REDIS_URL
+    - DATABASE_URL
+
+     
+
   clear:
     # Run the Solid Queue Supervisor inside the web server's Puma process to do jobs.
     # When you start using multiple servers, you should split out job processing to a dedicated machine.

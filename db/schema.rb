@@ -32,6 +32,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_09_05_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.vector "embedding"
+    t.index ["id", "scraped_at"], name: "index_documents_with_embeddings", where: "(embedding IS NOT NULL)"
+    t.index ["scraped_at"], name: "index_documents_on_scraped_at"
   end
 
   create_table "search_results", force: :cascade do |t|
@@ -57,6 +59,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_09_05_100000) do
     t.text "error_message"
     t.integer "expected_documents_count"
     t.vector "query_embedding", limit: 1536
+    t.index ["status", "updated_at"], name: "index_searches_on_status_and_updated_at"
+    t.index ["status"], name: "index_searches_on_status"
   end
 
   add_foreign_key "citations", "search_results"

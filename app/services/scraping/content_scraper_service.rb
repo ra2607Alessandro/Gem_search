@@ -1,6 +1,11 @@
 class Scraping::ContentScraperService
   require 'mechanize'
   require 'readability'
+  require 'timeout'
+  
+  TIMEOUT_SECONDS = 30
+  MIN_CONTENT_LENGTH = 100
+  MAX_CONTENT_LENGTH = 50_000
 
   def initialize(url)
     @url = url
@@ -10,211 +15,237 @@ class Scraping::ContentScraperService
   def call
     return error_response('Invalid URL') unless valid_url?
 
-    begin
-      Rails.logger.info "Scraping content from: #{url}"
-
-      page = fetch_page
-      return error_response('Failed to fetch page') unless page
-
-      raw_content = extract_content(page)
-      return error_response('No content found') unless raw_content
-
-      sanitized_content = sanitize_content(raw_content)
-
-      {
-        title: extract_title(page),
-        content: raw_content,
-        cleaned_content: sanitized_content,
-        success: true
-      }
-    rescue Mechanize::ResponseCodeError => e
-      handle_response_error(e)
-    rescue Net::ReadTimeout, Net::OpenTimeout
-      error_response('Request timeout')
-    rescue SocketError => e
-      error_response("DNS/Network error: #{e.message}")
-    rescue StandardError => e
-      Rails.logger.error "Content scraping error for #{url}: #{e.message}"
-      error_response("Unexpected error: #{e.message}")
+    Timeout.timeout(TIMEOUT_SECONDS) do
+      execute_scraping
     end
-  end
 
+  rescue Timeout::Error
+    error_response('Scraping timeout')
+  rescue StandardError => e
+    Rails.logger.error "[ContentScraperService] Error scraping #{@url}: #{e.message}"
+    error_response("Scraping failed: #{e.message}")
+  end
+  
   private
-
-  attr_reader :url, :agent
-
-  def setup_mechanize_agent
-    Mechanize.new do |agent|
-      agent.user_agent = 'Mozilla/5.0 (compatible; SearchAssistant/1.0; +https://example.com/bot)'
-      agent.read_timeout = 30
-      agent.open_timeout = 10
-      agent.follow_meta_refresh = true
-      agent.redirect_ok = true
-      agent.max_history      = 2
-      
-
-      # Enable cookies for JavaScript-heavy sites
-      agent.cookie_jar = Mechanize::CookieJar.new
-
-      # Configure SSL
-      agent.agent.http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+  
+  def execute_scraping
+    Rails.logger.info "[ContentScraperService] Starting scrape: #{@url}"
+    
+    page = fetch_page
+    return error_response('Failed to fetch page') unless page
+    
+    # Try multiple extraction methods
+    content = extract_with_readability(page) || 
+              extract_with_nokogiri(page) ||
+              extract_fallback(page)
+    
+    if content && content.length >= MIN_CONTENT_LENGTH
+      success_response(page, content)
+    else
+      error_response('Insufficient content extracted')
     end
   end
-
-  def valid_url?
-    return false if url.blank?
-
-    begin
-      parsed = URI.parse(url)
-      parsed.scheme.in?(['http', 'https']) && parsed.host.present?
-    rescue URI::InvalidURIError
-      false
-    end
-  end
-
+  
   def fetch_page
-    page = agent.get(url)
-
+    @agent ||= setup_mechanize_agent
+    response = @agent.get(@url)
+    
     # Check for common blocking patterns
-    return nil if page.body.include?('Access Denied') || page.body.include?('403 Forbidden')
-
-    page
-  rescue Mechanize::ResponseCodeError
+    if blocked_response?(response)
+      Rails.logger.warn "[ContentScraperService] Blocked by site: #{@url}"
+      return nil
+    end
+    
+    response
+  rescue Mechanize::ResponseCodeError => e
+    handle_http_error(e)
+    nil
+  rescue => e
+    Rails.logger.error "[ContentScraperService] Fetch error: #{e.message}"
     nil
   end
-
-  def extract_content(page)
-    # Primary method: Readability extraction
-    begin
-      source = Readability::Document.new(
-        page.body,
-        tags: %w[div p h1 h2 h3 h4 h5 h6 span a img blockquote pre code],
-        attributes: %w[href src alt title],
-        remove_empty_nodes: true,
-        debug: Rails.env.development?
-      )
-
-      readable_content = source.content
-      return readable_content if readable_content.present? && readable_content.length > 100
-    rescue StandardError => e
-      Rails.logger.warn "Readability extraction failed for #{url}: #{e.message}"
+  
+  def setup_mechanize_agent
+    Mechanize.new do |agent|
+      agent.user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      agent.read_timeout = 25
+      agent.open_timeout = 10
+      agent.follow_meta_refresh = true
+      agent.max_history = 2
+      
+      # Handle redirects properly for Mechanize 2.x
+      if agent.respond_to?(:max_redirects=)
+        agent.max_redirects = 5
+      elsif agent.respond_to?(:redirection_limit=)
+        agent.redirection_limit = 5
+      end
+      
+      agent.cookie_jar = Mechanize::CookieJar.new
+      
+      # Relaxed SSL for development
+      if Rails.env.development?
+        agent.agent.http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      end
+      
+      # Anti-bot detection headers
+      agent.request_headers = {
+        'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language' => 'en-US,en;q=0.5',
+        'Accept-Encoding' => 'gzip, deflate, br',
+        'DNT' => '1',
+        'Connection' => 'keep-alive',
+        'Upgrade-Insecure-Requests' => '1'
+      }
     end
-
-    # Fallback method: Custom Nokogiri extraction
-    extract_with_nokogiri(page)
   end
-
+  
+  def blocked_response?(response)
+    return false unless response.body
+    
+    blocking_patterns = [
+      'Access Denied',
+      '403 Forbidden', 
+      'CloudFlare',
+      'Please enable JavaScript',
+      'robot',
+      'captcha'
+    ]
+    
+    body_lower = response.body.downcase
+    blocking_patterns.any? { |pattern| body_lower.include?(pattern.downcase) }
+  end
+  
+  def extract_with_readability(page)
+    return nil unless page.body.present?
+    
+    doc = Readability::Document.new(
+      page.body,
+      tags: %w[div p h1 h2 h3 h4 h5 h6 span a img blockquote pre code ul ol li article section],
+      attributes: %w[href src alt title],
+      remove_empty_nodes: true,
+      remove_unlikely_candidates: true,
+      weight_classes: true,
+      clean_conditionally: true,
+      debug: false
+    )
+    
+    content = doc.content
+    return nil if content.blank?
+    
+    # Clean and normalize
+    cleaned = Sanitize.fragment(content, 
+      elements: %w[p h1 h2 h3 h4 h5 h6 blockquote pre ul ol li],
+      remove_empty_elements: true
+    )
+    
+    text = Nokogiri::HTML.fragment(cleaned).text.squeeze(' ').strip
+    text.length >= MIN_CONTENT_LENGTH ? text : nil
+    
+  rescue StandardError => e
+    Rails.logger.warn "[ContentScraperService] Readability extraction failed: #{e.message}"
+    nil
+  end
+  
   def extract_with_nokogiri(page)
     doc = Nokogiri::HTML(page.body)
-
-    # Remove unwanted elements
-    doc.search('script, style, nav, header, footer, aside, .ad, .ads, .advertisement, .sidebar').remove
-
-    # Try common content selectors
+    
+    # Remove script, style, and other non-content elements
+    doc.css('script, style, nav, header, footer, aside, .ad, .ads, #cookie, .popup').remove
+    
+    # Try multiple content selectors
     content_selectors = [
+      'main article',
+      'article[role="main"]',
+      'div[role="main"]',
+      '.post-content',
+      '.entry-content', 
+      '.article-content',
+      '.content-body',
+      '#main-content',
       'article',
       '.content',
-      '.post-content',
-      '.entry-content',
-      '.article-content',
-      '.main-content',
-      '#content',
-      '#main',
-      '.post',
-      '.article'
+      'main',
+      '#content'
     ]
-
+    
     content_selectors.each do |selector|
-      content = doc.at_css(selector)
-      next unless content
-
-      text = content.text.strip
-      return text if text.length > 200 # Minimum content length
+      elements = doc.css(selector)
+      next if elements.empty?
+      
+      text = elements.map(&:text).join(' ').squeeze(' ').strip
+      return text if text.length >= MIN_CONTENT_LENGTH
     end
-
-    # Last resort: extract from body
-    body = doc.at_css('body')
-    body&.text&.strip || ''
+    
+    nil
+  rescue StandardError => e
+    Rails.logger.warn "[ContentScraperService] Nokogiri extraction failed: #{e.message}"
+    nil
   end
-
+  
+  def extract_fallback(page)
+    # Last resort - extract all paragraph text
+    doc = Nokogiri::HTML(page.body)
+    paragraphs = doc.css('p').map(&:text).select { |p| p.length > 20 }
+    
+    return nil if paragraphs.empty?
+    
+    content = paragraphs.join(' ').squeeze(' ').strip
+    content.length >= MIN_CONTENT_LENGTH ? content[0...MAX_CONTENT_LENGTH] : nil
+  rescue
+    nil
+  end
+  
   def extract_title(page)
     doc = Nokogiri::HTML(page.body)
-
-    # Try title tag first
-    title = doc.at_css('title')&.text&.strip
-    return title if title.present? && title.length > 3
-
-    # Try Open Graph title
-    og_title = doc.at_css('meta[property="og:title"]')&.attr('content')&.strip
-    return og_title if og_title.present?
-
-    # Try h1 tag
-    h1_title = doc.at_css('h1')&.text&.strip
-    return h1_title if h1_title.present?
-
-    # Fallback to URL-based title
-    URI.parse(url).host || 'Untitled Page'
+    
+    # Try multiple title sources
+    title = doc.at_css('meta[property="og:title"]')&.attr('content') ||
+            doc.at_css('meta[name="twitter:title"]')&.attr('content') ||
+            doc.at_css('title')&.text ||
+            doc.at_css('h1')&.text ||
+            'Untitled'
+    
+    clean_text(title)
   end
-
-  def sanitize_content(content)
-    return '' unless content
-
-    # Convert to Nokogiri for cleaning
-    doc = Nokogiri::HTML.fragment(content)
-
-    # Remove scripts, styles, and tracking elements
-    doc.search('script, style, link, meta, noscript, iframe').remove
-
-    # Convert relative URLs to absolute
-    doc.search('a[href], img[src]').each do |element|
-      if element.name == 'a' && element['href']
-        element['href'] = make_absolute_url(element['href'])
-      elsif element.name == 'img' && element['src']
-        element['src'] = make_absolute_url(element['src'])
-      end
-    end
-
-    # Clean up whitespace and normalize
-    text = doc.text
-    text = text.gsub(/\n\s*\n\s*\n/, "\n\n") # Remove extra newlines
-    text = text.gsub(/[ \t]+/, ' ') # Normalize spaces
-    text.strip
-  end
-
-  def make_absolute_url(href)
-    return href if href.blank? || href.start_with?('http')
-
-    begin
-      URI.join(url, href).to_s
-    rescue URI::InvalidURIError
-      href
-    end
-  end
-
-  def handle_response_error(error)
-    case error.response_code
-    when '404'
-      error_response('Page not found')
-    when '403', '401'
-      error_response('Access forbidden')
-    when '429'
-      error_response('Rate limited')
-    when '500', '502', '503', '504'
-      error_response('Server error')
-    else
-      error_response("HTTP #{error.response_code}")
-    end
-  end
-
-  def error_response(reason)
-    Rails.logger.warn "Content scraping failed for #{url}: #{reason}"
-
+  
+  def success_response(page, content)
     {
+      success: true,
+      title: extract_title(page),
+      content: content[0...MAX_CONTENT_LENGTH],
+      cleaned_content: clean_text(content[0...MAX_CONTENT_LENGTH]),
+      url: @url,
+      scraped_at: Time.current
+    }
+  end
+  
+  def error_response(reason)
+    {
+      success: false,
       title: '',
       content: '',
       cleaned_content: '',
-      success: false,
-      error: reason
+      error: reason,
+      url: @url,
+      scraped_at: Time.current
     }
+  end
+  
+  def handle_http_error(error)
+    Rails.logger.warn "[ContentScraperService] HTTP #{error.response_code} for #{@url}"
+  end
+  
+  def valid_url?
+    return false if @url.blank?
+    
+    uri = URI.parse(@url)
+    uri.scheme.in?(['http', 'https']) && uri.host.present?
+  rescue URI::InvalidURIError
+    false
+  end
+  
+  def clean_text(text)
+    return '' if text.blank?
+    text.strip.squeeze(' ').gsub(/[\r\n]+/, ' ')
   end
 end

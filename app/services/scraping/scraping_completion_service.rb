@@ -1,41 +1,71 @@
 class Scraping::ScrapingCompletionService
   def self.check(search_id)
-    search = Search.find_by(id: search_id)
-    return unless search
+    new(search_id).check_and_process
+  end
+
+  def initialize(search_id)
+    @search = Search.find_by(id: search_id)
+  end
+
+  def check_and_process
+    return unless @search
+    return unless @search.scraping?
 
     # Check if all documents have been processed (have scraped_at timestamp)
-    total_documents = search.documents.count
-    scraped_documents = search.documents.where.not(scraped_at: nil).count
+    total_documents = @search.documents.count
+    scraped_documents = @search.documents.where.not(scraped_at: nil).count
+    documents_with_content = @search.documents.with_content.count
     
-    Rails.logger.info "Search #{search_id}: #{scraped_documents}/#{total_documents} documents scraped"
-
-    if total_documents > 0 && scraped_documents == total_documents
-      # All documents have been processed
-      Rails.logger.info "All documents scraped for search #{search_id}, triggering AI response generation"
-      
-      if search.scraping?
-        # Check if we have at least some content to work with
-        documents_with_content = search.documents.where.not(content: [nil, '']).count
-        
-        Rails.logger.info "Documents with content: #{documents_with_content}"
-        search.documents.each do |doc|
-          Rails.logger.info "Document #{doc.id} - URL: #{doc.url}, Content length: #{doc.content&.length || 0}"
-        end
-        
-        if documents_with_content > 0
-          Rails.logger.info "Found #{documents_with_content} documents with content, proceeding with AI generation"
-          search.update!(status: :processing)
-          AiResponseGenerationJob.perform_later(search_id)
-        else
-          Rails.logger.warn "All documents scraped but no content found for search #{search_id}"
-          search.update!(status: :failed, error_message: "No content could be extracted from any sources")
-        end
-      else
-        Rails.logger.warn "Scraping complete for search #{search_id}, but status is '#{search.status}'"
-      end
+    Rails.logger.info "[ScrapingCompletionService] Search #{@search.id}: " \
+                     "#{scraped_documents}/#{total_documents} scraped, " \
+                     "#{documents_with_content} with content"
+    
+    # Check if all documents have been processed
+    if all_documents_processed?(total_documents, scraped_documents)
+      handle_completion(documents_with_content)
     else
-      unscraped_ids = search.documents.where(scraped_at: nil).pluck(:id)
-      Rails.logger.info "Search #{search_id} has #{total_documents - scraped_documents} documents pending: #{unscraped_ids.join(', ')}"
+      log_pending_documents
+    end
+  end
+  
+  private
+  
+  def all_documents_processed?(total, scraped)
+    total > 0 && scraped >= total
+  end
+  
+  def handle_completion(documents_with_content)
+    if documents_with_content >= Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED
+      trigger_ai_generation
+    else
+      mark_as_failed_insufficient_content(documents_with_content)
+    end
+  end
+  
+  def trigger_ai_generation
+    Rails.logger.info "[ScrapingCompletionService] Triggering AI generation for search #{@search.id}"
+    
+    @search.update!(status: :processing)
+    AiResponseGenerationJob.perform_later(@search.id)
+  end
+  
+  def mark_as_failed_insufficient_content(content_count)
+    error_msg = "Insufficient content: only #{content_count} documents have content " \
+                "(minimum #{Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED} required)"
+    
+    Rails.logger.warn "[ScrapingCompletionService] #{error_msg}"
+    
+    @search.update!(
+      status: :failed,
+      error_message: error_msg
+    )
+  end
+  
+  def log_pending_documents
+    unscraped = @search.documents.where(scraped_at: nil).pluck(:url)
+    
+    if unscraped.any?
+      Rails.logger.info "[ScrapingCompletionService] Pending scrapes: #{unscraped.join(', ')}"
     end
   end
 end

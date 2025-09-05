@@ -1,144 +1,118 @@
 class WebScrapingJob < ApplicationJob
   queue_as :default
 
+  retry_on StandardError, wait: 5.seconds, attempts: 2
+
   def perform(document_id, search_id, position, search_result_data)
-    @document_id = document_id
-    @search_id = search_id
+    @document = Document.find(document_id)
+    @search = Search.find(search_id)
     @position = position
-    @search_result_data = search_result_data
+    @metrics = { started_at: Time.current }
 
-    begin
-      # Load records
-      document = Document.find(document_id)
-      search = Search.find(search_id)
+    Rails.logger.info "[WebScrapingJob] Starting scrape for document #{document_id}: #{@document.url}"
 
-      Rails.logger.info "Starting web scraping for document #{document_id}: #{document.url}"
-
-      # Step 1: Scrape content
-      scraped_data = scrape_content(document.url)
-
-      # Step 2: Update document with scraped content, even on failure
-      update_document_with_content(document, scraped_data)
-
-      # Step 3: Check if all documents are scraped, trigger AI generation if complete
-      Scraping::ScrapingCompletionService.check(search_id)
-
-      if scraped_data[:success]
-        # Step 4: Generate embeddings (only if scraping was successful)
-        generate_and_store_embeddings(document)
-
-        # Step 5: Update search result with improved relevance score
-        update_search_result_relevance(search, document, position, scraped_data)
-      end
-
-      Rails.logger.info "Completed web scraping job for document #{document_id}"
-
-    rescue ActiveRecord::RecordNotFound => e
-      Rails.logger.error "Record not found during scraping: #{e.message}"
-    rescue StandardError => e
-      Rails.logger.error "Web scraping failed for document #{document_id}: #{e.message}"
-      Rails.logger.error e.backtrace.join("\n")
-
-      # Mark document as having scraping issues
-      begin
-        Document.find(document_id).update(scraped_at: Time.current)
-      rescue ActiveRecord::RecordNotFound
-        # Document was deleted, nothing to do
-      end
-
-      raise e
+    scraped_data = scrape_content
+    
+    # Always update document with results (success or failure)
+    update_document(scraped_data)
+    
+    if scraped_data[:success]
+      # Generate embeddings if content available
+      generate_embeddings if @document.content_available?
+      
+      # Update search result relevance
+      update_relevance_score
     end
+    
+    # Check if all documents are processed
+    Scraping::ScrapingCompletionService.check(search_id)
+    
+    log_metrics(scraped_data[:success])
+    
+  rescue StandardError => e
+    handle_job_error(e)
+    raise # Re-raise for retry
   end
-
+  
   private
-
-  def scrape_content(url)
-    Rails.logger.info "Scraping content from: #{url}"
-
-    scraper = Scraping::ContentScraperService.new(url)
-    result = scraper.call
-
-    if result[:success]
-      Rails.logger.info "Successfully scraped content from #{url} (#{result[:cleaned_content].length} characters)"
-    else
-      Rails.logger.warn "Failed to scrape content from #{url}: #{result[:error]}"
-    end
-
+  
+  def scrape_content
+    service = Scraping::ContentScraperService.new(@document.url)
+    result = service.call
+    
+    @metrics[:scraping_success] = result[:success]
+    @metrics[:content_length] = result[:content]&.length || 0
+    
     result
   end
-
-  def update_document_with_content(document, scraped_data)
-      # Only set content if scraping was successful
-    content = scraped_data[:success] ? scraped_data[:content] : nil
-    document.update!(
-      title: scraped_data[:title].presence || document.title,
-      # Use empty string as fallback to ensure content is not nil
-      content: scraped_data.fetch(:content, ''),
+  
+  def update_document(scraped_data)
+    @document.assign_attributes(
+      title: scraped_data[:title].presence || @document.title,
+      content: scraped_data[:success] ? scraped_data[:content] : nil,
       scraped_at: Time.current
     )
-
-    Rails.logger.info "Updated document #{document.id} (success: #{scraped_data[:success]}, content: #{content.present?})"
+    
+    # Add error tracking
+    if !scraped_data[:success]
+      @document.content = nil  # Ensure no partial content
+      Rails.logger.warn "[WebScrapingJob] Scraping failed for #{@document.url}: #{scraped_data[:error]}"
+    end
+    
+    @document.save!
   end
-
-  def generate_and_store_embeddings(document)
-    return unless document.content.present?
-
-    Rails.logger.info "Generating embeddings for document #{document.id}"
-
-    # Generate embeddings for the cleaned content
-    embedding_service = Ai::EmbeddingService.new(document.content)
-    embedding_vector = embedding_service.call
-
-    if embedding_vector.present? && embedding_vector.length == 1536
-      document.update!(embedding: embedding_vector)
-      Rails.logger.info "Stored embeddings for document #{document.id}"
-    else
-      Rails.logger.warn "Failed to generate valid embeddings for document #{document.id}"
+  
+  def generate_embeddings
+    Rails.logger.info "[WebScrapingJob] Queueing embedding generation for document #{@document.id}"
+    EmbeddingGenerationJob.perform_later(@document.id)
+    @metrics[:embedding_queued] = true
+  end
+  
+  def update_relevance_score
+    search_result = SearchResult.find_by(search: @search, document: @document)
+    return unless search_result
+    
+    # Enhance relevance score based on content quality
+    content_factor = calculate_content_factor
+    new_score = combine_scores(search_result.relevance_score, content_factor)
+    
+    search_result.update!(relevance_score: new_score)
+    @metrics[:relevance_updated] = true
+  end
+  
+  def calculate_content_factor
+    return 0.0 unless @document.content.present?
+    
+    length = @document.content.length
+    case length
+    when 0...200 then 0.0
+    when 200...500 then 0.1
+    when 500...1000 then 0.2
+    else 0.3
     end
   end
-
-  def update_search_result_relevance(search, document, position, scraped_data)
-    search_result = SearchResult.find_by(search: search, document: document)
-
-    if search_result
-      # Recalculate relevance score with additional factors
-      new_score = calculate_enhanced_relevance_score(
-        position,
-        scraped_data[:cleaned_content]&.length || 0,
-        document.embedding.present?
-      )
-
-      search_result.update!(relevance_score: new_score)
-      Rails.logger.info "Updated relevance score for search result #{search_result.id} to #{new_score}"
-    else
-      Rails.logger.warn "Search result not found for search #{search.id} and document #{document.id}"
-    end
+  
+  def combine_scores(base_score, content_factor)
+    # Weight: 70% position, 30% content quality
+    combined = (base_score * 0.7) + (content_factor * 0.3)
+    [combined, 1.0].min.round(4)
   end
-
-  def calculate_enhanced_relevance_score(position, content_length, has_embedding)
-    # Base score from position (0.0 to 1.0)
-    position_score = 1.0 - (position.to_f / 10.0) # Assuming max 10 results
-
-    # Content length factor (0.0 to 0.3)
-    # Reward longer, more substantial content
-    length_factor = if content_length > 1000
-                      0.3
-                    elsif content_length > 500
-                      0.2
-                    elsif content_length > 200
-                      0.1
-                    else
-                      0.0
-                    end
-
-    # Embedding factor (0.0 to 0.2)
-    # Reward documents with successful embeddings
-    embedding_factor = has_embedding ? 0.2 : 0.0
-
-    # Combine factors
-    total_score = position_score + length_factor + embedding_factor
-
-    # Ensure score is between 0.0 and 1.0
-    [total_score, 1.0].min.round(4)
+  
+  def handle_job_error(error)
+    Rails.logger.error "[WebScrapingJob] Error for document #{@document.id}: #{error.message}"
+    
+    # Mark document as processed but failed
+    @document.update!(scraped_at: Time.current) rescue nil
+    
+    # Still check completion
+    Scraping::ScrapingCompletionService.check(@search.id) rescue nil
+  end
+  
+  def log_metrics(success)
+    @metrics[:ended_at] = Time.current
+    @metrics[:duration] = @metrics[:ended_at] - @metrics[:started_at]
+    @metrics[:success] = success
+    
+    Rails.logger.info "[WebScrapingJob] Metrics for document #{@document.id}: #{@metrics.to_json}"
   end
 end
