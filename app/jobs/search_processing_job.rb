@@ -10,7 +10,7 @@ class SearchProcessingJob < ApplicationJob
     Rails.logger.info "[SearchProcessingJob] Starting search #{search_id}: #{@search.query}"
 
       # Update status to scraping
-      search.update!(status: :scraping)
+      @search.update!(status: :scraping)
 
       generate_query_embedding
     
@@ -24,7 +24,7 @@ class SearchProcessingJob < ApplicationJob
       end
 
       # Step 2: Process and deduplicate documents
-      search.update!(status: :scraping)
+      @search.update!(status: :scraping)
     processed_count = process_search_results(search_results)
     
     # Store expected document count for tracking

@@ -4,7 +4,7 @@ class Ai::ResponseGenerationService
   MODEL = 'gpt-4o-mini'
   MAX_TOKENS = 2000
   MAX_CONTEXT_LENGTH = 12000
-  MIN_SOURCES_REQUIRED = 2
+  MIN_SOURCES_REQUIRED = 1
 
 
   class InsufficientSourcesError < StandardError; end

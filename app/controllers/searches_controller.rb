@@ -78,13 +78,15 @@ class SearchesController < ApplicationController
     
     if @search.scraping? || @search.failed?
       documents_with_content = @search.documents.where.not(content: [nil, ''])
-      
-      if documents_with_content.exists?
-        Rails.logger.info "Manual retry triggered for search #{@search.id}. Found #{documents_with_content.count} documents with content."
-        # To ensure it gets processed, we update its status and timestamp
+      content_count = documents_with_content.count
+    
+      if content_count >= Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED
+        Rails.logger.info "Manual retry triggered for search #{@search.id}. Found #{content_count} documents with content."
         @search.update(status: :scraping, updated_at: Time.current)
         AiResponseGenerationJob.perform_later(@search.id)
         redirect_to @search, notice: 'AI response generation has been manually triggered. The page will update shortly.'
+      elsif content_count > 0
+        redirect_to @search, alert: "Cannot generate AI response: Need at least #{Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED} sources with content, but only #{content_count} available."
       else
         redirect_to @search, alert: 'Cannot generate AI response: No content has been successfully scraped.'
       end
