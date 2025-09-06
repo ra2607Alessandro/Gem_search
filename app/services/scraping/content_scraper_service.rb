@@ -15,6 +15,11 @@ class Scraping::ContentScraperService
   def call
     return error_response('Invalid URL') unless valid_url?
 
+    if Youtube::YoutubeDetectorService.youtube_url?(@url)
+      youtube_service = Youtube::YoutubeMetadataService.new(@url)
+      return youtube_service.extract_metadata
+    end
+
     Timeout.timeout(TIMEOUT_SECONDS) do
       execute_scraping
     end

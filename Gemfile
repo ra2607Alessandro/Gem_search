@@ -62,11 +62,14 @@ gem 'typhoeus'
 gem 'ruby-readability' # Modern replacement for readability gem
 
 # Background Processing
+gem 'solid_queue'
 #gem 'sidekiq'
 #gem 'sidekiq-cron'
 
 # External APIs
 gem 'google-apis-customsearch_v1', '~> 0.1'
+# Gemfile
+gem 'google-apis-youtube_v3'
 # Alternative: gem 'serpapi'
 
 # Performance and Monitoring

@@ -13,6 +13,15 @@ class WebScrapingJob < ApplicationJob
 
     scraped_data = scrape_content
     
+     # If scraping failed, try fallback content generation
+    if !scraped_data[:success] && search_result_data.present?
+     Rails.logger.info "[WebScrapingJob] Using fallback content for #{@document.url}"
+      scraped_data = Scraping::FallbackContentService.generate_from_search_result(
+       @document.url,
+       search_result_data[:title] || @document.title,
+       search_result_data[:snippet] || "")
+  end
+
     # Always update document with results (success or failure)
     update_document(scraped_data)
     

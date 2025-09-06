@@ -59,9 +59,14 @@ class SearchProcessingJob < ApplicationJob
   
   def perform_web_search
     Rails.logger.info "[SearchProcessingJob] Performing web search"
+
+    if Youtube::YoutubeDetectorService.youtube_query?(@search.query)
+      service = Search::YoutubeSearchService.new(@search.query)
+    else
+      service = Search::WebSearchService.new
+    end
     
-    service = Search::WebSearchService.new
-    results = service.search(@search.query, num_results: 10)
+    results = service.search(num_results: 10)
     
     @metrics[:steps_completed] << :web_search
     @metrics[:search_results_count] = results.length
