@@ -1,83 +1,71 @@
 class AiResponseGenerationJob < ApplicationJob
   queue_as :default
 
-  retry_on StandardError, wait: 10.seconds, attempts: 2
+  # Retry on network errors or other transient issues
+  retry_on StandardError, wait: :exponentially_longer, attempts: 3
 
   def perform(search_id)
-    @search = Search.find(search_id)
-
-    Rails.logger.info "[AiResponseGenerationJob] Starting for search #{search_id}"
+    search = Search.find_by(id: search_id)
+    return unless search
+  
+    Rails.logger.info "[AiResponseGenerationJob] Starting AI generation for search #{search.id}"
     
-    # Validate search state
-    unless @search.processing?
-      Rails.logger.warn "[AiResponseGenerationJob] Search #{search_id} not in processing state (#{@search.status})"
+    # Add validation
+    unless $openai_client
+      Rails.logger.error "[AiResponseGenerationJob] OpenAI client not initialized!"
+      search.update!(status: :failed, error_message: "OpenAI client not configured")
       return
     end
-    
-    # Generate response using only truth-grounded content
-    response_service = Ai::ResponseGenerationService.new(@search)
-    response_data = response_service.generate_response
-    
-    if response_data.present?
-      save_response(response_data)
-      broadcast_completion
+  
+    search.update!(status: :processing)
+  
+    service = Ai::ResponseGenerationService.new(search)
+    response_data = service.generate_response
+
+    if response_data&.dig(:response).present?
+      search.update!(
+        ai_response: response_data[:response],
+        follow_up_questions: response_data[:follow_up_questions],
+        status: :completed,
+        completed_at: Time.current
+      )
+      
+      # Broadcast the final response to the UI
+      SearchesController.broadcast_ai_response_ready(search.id)
+      Rails.logger.info "[AiResponseGenerationJob] Successfully completed AI generation for search #{search.id}"
     else
-      handle_generation_failure
+      handle_failure(search, "AI response generation failed to produce content.")
     end
-    
-  rescue Ai::ResponseGenerationService::InsufficientSourcesError => e
-    handle_insufficient_sources(e)
-  rescue StandardError => e
-    handle_job_error(e)
-    raise # Re-raise for retry
-  end
-  
+ 
+
+rescue StandardError => e
+  Rails.logger.error "[AiResponseGenerationJob] Failed with error: #{e.class.name}: #{e.message}"
+  Rails.logger.error "Full backtrace:\n#{e.backtrace.join("\n")}"  // Log full backtrace for debugging
+  handle_failure(search, "AI job error: #{e.message} - Check logs for details")
+  raise
+end
+
+// In handle_failure, add broadcast for better UI feedback
+def handle_failure(search, error_message)
+  Rails.logger.error "[AiResponseGenerationJob] Failed for search #{search.id}: #{error_message}"
+  search.update!(
+    status: :failed,
+    error_message: error_message
+  )
+  # Broadcast detailed error to UI
+  SearchesController.broadcast_status_update(search.id, error: error_message)  // Assume broadcast method supports optional error param; add if needed
+end
+
+
   private
-  
-  def save_response(response_data)
-    @search.update!(
-      ai_response: response_data[:response],
-      follow_up_questions: response_data[:follow_up_questions],
-      status: :completed
-    )
-    
-    Rails.logger.info "[AiResponseGenerationJob] Successfully saved response with " \
-                     "#{response_data[:citations]&.length || 0} citations"
-  end
-  
-  def broadcast_completion
-    # Trigger real-time update
-    SearchesController.broadcast_ai_response_ready(@search.id)
-  rescue => e
-    Rails.logger.error "[AiResponseGenerationJob] Broadcast failed: #{e.message}"
-  end
-  
-  def handle_generation_failure
-    Rails.logger.error "[AiResponseGenerationJob] Response generation returned nil"
-    
-    @search.update!(
+
+  def handle_failure(search, error_message)
+    Rails.logger.error "[AiResponseGenerationJob] Failed for search #{search.id}: #{error_message}"
+    search.update!(
       status: :failed,
-      error_message: "Failed to generate AI response"
+      error_message: error_message
     )
-  end
-  
-  def handle_insufficient_sources(error)
-    Rails.logger.error "[AiResponseGenerationJob] #{error.message}"
-    
-    @search.update!(
-      status: :failed,
-      error_message: error.message
-    )
-  end
-  
-  def handle_job_error(error)
-    Rails.logger.error "[AiResponseGenerationJob] Error: #{error.message}"
-    Rails.logger.error "[AiResponseGenerationJob] Available sources: #{@search.documents.with_content.count}"
-    Rails.logger.error error.backtrace.first(5).join("\n")
-    
-    @search.update!(
-      status: :failed,
-      error_message: "AI response generation error: #{error.message}"
-    )
+    # Also broadcast a status update so the UI reflects the failure
+    SearchesController.broadcast_status_update(search.id)
   end
 end

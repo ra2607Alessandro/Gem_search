@@ -33,7 +33,7 @@ class WebScrapingJob < ApplicationJob
       update_relevance_score
     end
     
-    # Check if all documents are processed
+    # Always check for completion after every scrape attempt to see if the whole batch is done
     Scraping::ScrapingCompletionService.check(search_id)
     
     log_metrics(scraped_data[:success])

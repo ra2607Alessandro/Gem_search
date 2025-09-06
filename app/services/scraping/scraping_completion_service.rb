@@ -38,9 +38,9 @@ class Scraping::ScrapingCompletionService
     # If no documents have content but we have search results, 
     # try to generate response from snippets
     if documents_with_content == 0 && @search.search_results.any?
-      Rails.logger.warn "[ScrapingCompletionService] No content scraped, using snippets"
+      Rails.logger.warn "[ScrapingCompletionService] No primary content scraped for search #{@search.id}. Falling back to snippets."
       trigger_ai_generation_with_snippets
-    elsif documents_with_content >= 1 # Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED
+    elsif documents_with_content >= Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED
       trigger_ai_generation
     else
       mark_as_failed_insufficient_content(documents_with_content)
