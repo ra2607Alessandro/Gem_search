@@ -143,7 +143,7 @@
                     <!-- Meta Information -->
                     <div class="flex items-center text-xs text-gray-500 space-x-4">
                       <span><%= time_ago_in_words(search.created_at) %> ago</span>
-                      <span><%= search.search_results.count %> sources</span>
+                      <span><%= search.search_results.size %> sources</span>
                       <% if search.user_ip %>
                         <span>IP: <%= search.user_ip %></span>
                       <% end %>

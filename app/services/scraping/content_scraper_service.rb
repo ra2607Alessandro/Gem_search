@@ -4,7 +4,7 @@ class Scraping::ContentScraperService
   require 'timeout'
   
   TIMEOUT_SECONDS = 30
-  MIN_CONTENT_LENGTH = 100
+  MIN_CONTENT_LENGTH = 50
   MAX_CONTENT_LENGTH = 50_000
 
   def initialize(url)

@@ -40,13 +40,20 @@ class Scraping::ScrapingCompletionService
     if documents_with_content == 0 && @search.search_results.any?
       Rails.logger.warn "[ScrapingCompletionService] No content scraped, using snippets"
       trigger_ai_generation_with_snippets
-    elsif documents_with_content >= Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED
+    elsif documents_with_content >= 1 # Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED
       trigger_ai_generation
     else
       mark_as_failed_insufficient_content(documents_with_content)
     end
   end
   
+  def trigger_ai_generation
+    Rails.logger.info "[ScrapingCompletionService] Triggering AI response generation for search #{@search.id}"
+    
+    @search.update!(status: :processing)
+    AiResponseGenerationJob.perform_later(@search.id)
+  end
+
   def trigger_ai_generation_with_snippets
     # Create minimal content from search result snippets
     @search.search_results.each do |result|
@@ -80,3 +87,4 @@ class Scraping::ScrapingCompletionService
     end
   end
 end
+

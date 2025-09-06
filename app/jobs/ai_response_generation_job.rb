@@ -72,6 +72,7 @@ class AiResponseGenerationJob < ApplicationJob
   
   def handle_job_error(error)
     Rails.logger.error "[AiResponseGenerationJob] Error: #{error.message}"
+    Rails.logger.error "[AiResponseGenerationJob] Available sources: #{@search.documents.with_content.count}"
     Rails.logger.error error.backtrace.first(5).join("\n")
     
     @search.update!(
