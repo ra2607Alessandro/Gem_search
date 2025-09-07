@@ -24,12 +24,18 @@ class Ai::ResponseGenerationService
     
     # Generate response
     response_data = generate_ai_response(context)
-    
-    # Create citations
-    create_citations(response_data[:citations]) if response_data[:citations].any?
-    
+
+    unless response_data.present? && response_data[:response].present?
+      error_message = "AI response missing or malformed"
+      Rails.logger.error "[ResponseGenerationService] #{error_message}"
+      return { error: error_message }
+    end
+
+    # Create citations only if we have response data
+    create_citations(response_data[:citations]) if response_data.present? && response_data[:citations]&.any?
+
     Rails.logger.info "[ResponseGenerationService] Completed successfully"
-    
+
     response_data
     
   rescue StandardError => e
