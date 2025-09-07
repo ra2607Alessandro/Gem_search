@@ -6,6 +6,7 @@ class Ai::ResponseGenerationService
   MAX_TOKENS = 2000
   MAX_CONTEXT_LENGTH = 12000
   MIN_SOURCES_REQUIRED = 1
+  MAX_RETRIES = 2
 
 
   class InsufficientSourcesError < StandardError; end
@@ -34,6 +35,9 @@ class Ai::ResponseGenerationService
 
     response_data
 
+  rescue InsufficientSourcesError => e
+    Rails.logger.warn "[ResponseGenerationService] Insufficient sources: #{e.message}"
+    raise
   rescue StandardError => e
     Rails.logger.error "[ResponseGenerationService] Failed for search #{@search.id}: #{e.message}"
     Rails.logger.error e.backtrace.first(10).join("\n")
@@ -124,7 +128,9 @@ class Ai::ResponseGenerationService
     context_info = "search=#{@search.id} model=#{MODEL} tokens=#{@metrics[:total_tokens]}"
 
     response = nil
+    attempts = 0
     begin
+      attempts += 1
       Timeout.timeout(60) do
         response = openai_client.chat(
           parameters: {
@@ -140,14 +146,26 @@ class Ai::ResponseGenerationService
       Rails.logger.debug "[ResponseGenerationService] Raw OpenAI response (#{context_info}): #{response.inspect}"
     rescue Timeout::Error => e
       Rails.logger.error "[ResponseGenerationService] OpenAI timeout (#{context_info}): #{e.message}"
-      return { error: "OpenAI response timed out after 60s" }
+      if attempts <= MAX_RETRIES
+        sleep(2 ** attempts)
+        retry
+      else
+        return { error: "OpenAI response timed out after 60s" }
+      end
     rescue StandardError => e
       Rails.logger.error "[ResponseGenerationService] OpenAI API error (#{context_info}): #{e.message}"
       Rails.logger.error "[ResponseGenerationService] Raw response: #{response.inspect}" if response
-      return { error: e.message }
+      if attempts <= MAX_RETRIES && retryable_openai_error?(e)
+        sleep(2 ** attempts)
+        retry
+      else
+        return { error: e.message }
+      end
     end
-  
+
     raw_content = response.dig('choices', 0, 'message', 'content')
+    return { error: 'Empty response from OpenAI' } if raw_content.blank?
+
     parse_response(raw_content, context[:sources])
   end
 
@@ -315,6 +333,10 @@ class Ai::ResponseGenerationService
   def estimate_tokens(text)
     # Rough estimation: ~4 characters per token
     (text.length / 4.0).ceil
+  end
+
+  def retryable_openai_error?(error)
+    error.message.to_s.match?(/Rate limit|timeout|temporarily|429|503/i)
   end
 
   def openai_client

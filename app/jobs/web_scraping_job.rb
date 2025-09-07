@@ -29,9 +29,6 @@ class WebScrapingJob < ApplicationJob
     broadcast_scraping_progress(scraped_data)
 
     if scraped_data[:success]
-      # Generate embeddings if content available
-      generate_embeddings if @document.content_available?
-      
       # Update search result relevance
       update_relevance_score
     end
@@ -72,12 +69,6 @@ class WebScrapingJob < ApplicationJob
     end
     
     @document.save!
-  end
-  
-  def generate_embeddings
-    Rails.logger.info "[WebScrapingJob] Queueing embedding generation for document #{@document.id}"
-    EmbeddingGenerationJob.perform_later(@document.id)
-    @metrics[:embedding_queued] = true
   end
   
   def update_relevance_score

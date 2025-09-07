@@ -30,24 +30,34 @@ class AiResponseGenerationJob < ApplicationJob
         status: :completed,
         completed_at: Time.current
       )
+
+      # Defer embedding generation until after response is ready
+      search.documents.with_content.find_each do |doc|
+        doc.generate_embedding!
+      end
+
       SearchesController.broadcast_ai_response_ready(search.id)
       Rails.logger.info "[AiResponseGenerationJob] Successfully completed AI generation for search #{search.id}"
     else
-      handle_failure(search, "AI response generation failed to produce content.")
+      error_msg = data[:error] || "AI response generation failed to produce content."
+      handle_failure(search, error_msg, retryable: true)
     end
+  rescue Ai::ResponseGenerationService::InsufficientSourcesError => e
+    handle_failure(search, e.message, retryable: false)
   rescue => e
     Rails.logger.error "[AiResponseGenerationJob] Failed: #{e.class}: #{e.message}"
     Rails.logger.error e.backtrace.first(10).join("\n")
-    handle_failure(search, "AI job error: #{e.message}")
+    handle_failure(search, "AI job error: #{e.message}", retryable: false)
     raise
   end
 
   private
 
 
-  def handle_failure(search, msg)
+  def handle_failure(search, msg, retryable: false)
     Rails.logger.error "[AiResponseGenerationJob] Failed for search #{search.id}: #{msg}"
-    search.update!(status: :failed, error_message: msg)
+    status = retryable ? :retryable : :failed
+    search.update!(status: status, error_message: msg)
     SearchesController.broadcast_status_update(search.id) rescue nil
   end
 end
