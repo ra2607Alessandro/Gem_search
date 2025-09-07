@@ -29,6 +29,8 @@ class AiResponseGenerationJob < ApplicationJob
       )
       SearchesController.broadcast_ai_response_ready(search.id)
       Rails.logger.info "[AiResponseGenerationJob] Successfully completed AI generation for search #{search.id}"
+    elsif data && data[:error]
+      handle_failure(search, data[:error])
     else
       handle_failure(search, "AI response generation failed to produce content.")
     end

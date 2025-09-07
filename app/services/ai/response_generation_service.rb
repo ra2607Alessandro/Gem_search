@@ -17,25 +17,26 @@ class Ai::ResponseGenerationService
   def generate_response
     validate_prerequisites!
 
-    
-       Rails.logger.info "[ResponseGenerationService] Starting for search #{@search.id}"
-      # Prepare context for the AI
-      context = prepare_truth_grounded_context
-    
+    Rails.logger.info "[ResponseGenerationService] Starting for search #{@search.id}"
+
+    # Prepare context for the AI
+    context = prepare_truth_grounded_context
+
     # Generate response
     response_data = generate_ai_response(context)
-    
+    return response_data if response_data[:error]
+
     # Create citations
-    create_citations(response_data[:citations]) if response_data[:citations].any?
-    
+    create_citations(response_data[:citations]) if response_data[:citations]&.any?
+
     Rails.logger.info "[ResponseGenerationService] Completed successfully"
-    
+
     response_data
-    
+
   rescue StandardError => e
     Rails.logger.error "[ResponseGenerationService] Failed for search #{@search.id}: #{e.message}"
     Rails.logger.error e.backtrace.first(10).join("\n")
-    nil
+    { error: e.message }
   end
   
   private
@@ -119,6 +120,7 @@ class Ai::ResponseGenerationService
 
   def generate_ai_response(context)
     messages = build_messages(context)
+    context_info = "search=#{@search.id} model=#{MODEL} tokens=#{@metrics[:total_tokens]}"
 
     response = nil
     begin
@@ -134,12 +136,14 @@ class Ai::ResponseGenerationService
           }
         )
       end
+      Rails.logger.debug "[ResponseGenerationService] Raw OpenAI response (#{context_info}): #{response.inspect}"
     rescue Timeout::Error => e
-      Rails.logger.error "[ResponseGenerationService] OpenAI timeout: #{e.message}"
-      raise "OpenAI response timed out after 60s"
+      Rails.logger.error "[ResponseGenerationService] OpenAI timeout (#{context_info}): #{e.message}"
+      return { error: "OpenAI response timed out after 60s" }
     rescue StandardError => e
-      Rails.logger.error "[ResponseGenerationService] OpenAI API error: #{e.message}"
-      raise
+      Rails.logger.error "[ResponseGenerationService] OpenAI API error (#{context_info}): #{e.message}"
+      Rails.logger.error "[ResponseGenerationService] Raw response: #{response.inspect}" if response
+      return { error: e.message }
     end
 
     raw_content = response.dig('choices', 0, 'message', 'content')
