@@ -1,3 +1,4 @@
+require 'timeout'
 require "openai"
 
 class Ai::ResponseGenerationService
