@@ -40,6 +40,7 @@ class AiResponseGenerationJob < ApplicationJob
       Rails.logger.info "[AiResponseGenerationJob] Successfully completed AI generation for search #{search.id}"
     else
       error_msg = data[:error] || "AI response generation failed to produce content."
+      search.update!(error_message: error_msg)
       handle_failure(search, error_msg, retryable: true)
     end
   rescue Ai::ResponseGenerationService::InsufficientSourcesError => e

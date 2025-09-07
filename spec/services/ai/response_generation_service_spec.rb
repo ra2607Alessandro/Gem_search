@@ -41,6 +41,21 @@ RSpec.describe Ai::ResponseGenerationService, type: :service do
       end
     end
 
+    context 'when OpenAI returns an error response' do
+      let(:openai_client) do
+        instance_double(OpenAI::Client, chat: { 'error' => { 'message' => 'bad request' } })
+      end
+
+      before do
+        create(:document, content: 'abcde', search_results: [build(:search_result, search: search)])
+      end
+
+      it 'propagates the error message' do
+        result = described_class.new(search).generate_response
+        expect(result).to eq(error: 'bad request')
+      end
+    end
+
     context 'when OpenAI client is missing' do
       let(:openai_client) { nil }
 
