@@ -55,7 +55,7 @@ class Ai::ResponseGenerationService
     # Get documents with content, ordered by relevance
     documents = if @search.query_embedding.present?
       # Use semantic search for better relevance
-      Document.semantic_search(@search.query_embedding, limit: 8)
+      Document.semantic_search(@search.query_embedding, limit: 5)
               .joins(:search_results)
               .where(search_results: { search_id: @search.id })
     else
@@ -64,7 +64,7 @@ class Ai::ResponseGenerationService
              .with_content
              .joins(:search_results)
              .order('search_results.relevance_score DESC')
-             .limit(8)
+             .limit(5)
     end
     
     # Build context with numbered sources
@@ -102,7 +102,7 @@ class Ai::ResponseGenerationService
   
   def build_source_text(document, number)
     # Limit content length per source
-    max_length = 1500
+    max_length = 1000
     content = document.content || ""
     
     truncated_content = if content.length > max_length
@@ -117,43 +117,43 @@ class Ai::ResponseGenerationService
   
  
 
-def generate_ai_response(context)
-  messages = build_messages(context)
-  
-  # Add timeout and better error handling
-  response = nil
-  Timeout.timeout(60) do  // 60s timeout for OpenAI call
-    response = $openai_client.completions(
-      parameters: {
-        model: MODEL,
-        messages: messages,
-        max_tokens: MAX_TOKENS,
-        temperature: 0.3,
-        presence_penalty: 0.1,
-        frequency_penalty: 0.1
-      }
-    )
-  rescue Timeout::Error => e
-    Rails.logger.error "[ResponseGenerationService] OpenAI timeout: #{e.message}"
-    raise EmbeddingError, "OpenAI response timed out after 60s"
-  rescue OpenAI::Error => e  // Catch OpenAI-specific errors (add 'openai' gem if needed)
-    Rails.logger.error "[ResponseGenerationService] OpenAI API error: #{e.message} - Response: #{e.response.inspect}"
-    raise
+  def generate_ai_response(context)
+    messages = build_messages(context)
+
+    response = nil
+    begin
+      Timeout.timeout(60) do
+        response = $openai_client.chat(
+          parameters: {
+            model: MODEL,
+            messages: messages,
+            max_tokens: MAX_TOKENS,
+            temperature: 0.3,
+            presence_penalty: 0.1,
+            frequency_penalty: 0.1
+          }
+        )
+      end
+    rescue Timeout::Error => e
+      Rails.logger.error "[ResponseGenerationService] OpenAI timeout: #{e.message}"
+      raise "OpenAI response timed out after 60s"
+    rescue StandardError => e
+      Rails.logger.error "[ResponseGenerationService] OpenAI API error: #{e.message}"
+      raise
+    end
+
+    raw_content = response.dig('choices', 0, 'message', 'content')
+    parse_response(raw_content, context[:sources])
   end
-  
-  raw_content = response.dig('choices', 0, 'message', 'content')
-  parse_response(raw_content, context[:sources])
-end
 
 
   
   def build_messages(context)
     system_prompt = build_truth_grounded_system_prompt
-    user_prompt = build_user_prompt(context)
-    
+    user_prompt   = build_user_prompt(context)
     [
       { role: 'system', content: system_prompt },
-      { role: 'user', content: user_prompt }
+      { role: 'user',   content: user_prompt }
     ]
   end
   

@@ -152,40 +152,20 @@ class SearchesController < ApplicationController
     search = Search.find(params[:id])
     response.headers['Content-Type'] = 'text/event-stream'
     response.headers['Cache-Control'] = 'no-cache'
-
     sse = SSE.new(response.stream, retry: 300)
-
     begin
-      # Send initial status
-      sse.write({ status: search.status, progress: calculate_progress(search) })
-
-      # Keep connection alive and send updates
-      while search.processing?
-        sleep 2 # Check every 2 seconds
+      loop do
         search.reload
-
-        progress_data = {
+        sse.write({
           status: search.status,
           progress: calculate_progress(search),
-          sources_found: search.search_results.count
-        }
-
-        sse.write(progress_data)
-
-        # Break if search is completed or failed
-        break unless search.processing?
+          sources_found: search.search_results.count,
+          completed: (search.completed? || search.failed?)
+        })
+        break if search.completed? || search.failed?
+        sleep 2
       end
-
-      # Send final status
-      sse.write({
-        status: search.status,
-        progress: 100,
-        sources_found: search.search_results.count,
-        completed: true
-      })
-
     rescue IOError
-      # Client disconnected
     ensure
       sse.close
     end
@@ -197,15 +177,17 @@ class SearchesController < ApplicationController
     case search.status.to_sym
     when :pending
       0
+    when :scraping
+      total = search.documents.count
+      scraped = search.documents.where.not(scraped_at: nil).count
+      return 10 if total.zero?
+      [(scraped * 70.0 / total).round, 70].min
     when :processing
-      # Estimate progress based on sources found
       sources_found = search.search_results.count
-      max_sources = 10 # Expected maximum
-      [(sources_found * 80 / max_sources.to_f).round, 80].min # Cap at 80% until completion
+      max_sources = 10
+      [(sources_found * 90 / max_sources.to_f).round, 90].min
     when :completed
       100
-    when :failed
-      0
     else
       0
     end
@@ -254,9 +236,23 @@ class SearchesController < ApplicationController
   end
 
   # Class methods for broadcasting from jobs
+  def self.broadcast_search_update(search)
+    Turbo::StreamsChannel.broadcast_replace_to(
+      "search_#{search.id}",
+      target: "search_status_#{search.id}",
+      partial: "searches/status",
+      locals: { search: search }
+    )
+  end
+
   def self.broadcast_status_update(search_id)
     search = Search.find(search_id)
-    new.broadcast_search_update(search)
+    Turbo::StreamsChannel.broadcast_replace_to(
+      "search_#{search.id}",
+      target: "search_status",                 # match _status.html.erb container
+      partial: "searches/status",
+      locals: { search: search }               # no attempt to set search.status_details
+    )
   end
 
   def self.broadcast_results_update(search_id)

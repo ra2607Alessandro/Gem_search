@@ -1,7 +1,8 @@
 <div class="min-h-screen bg-gray-50" data-controller="search-updates" data-search-id="<%= @search.id %>">
-  <div class="max-w-6xl mx-auto px-4 py-8">
-    <!-- Header -->
-    <div class="mb-6">
+  <%= turbo_stream_from "search_#{@search.id}" %>
+   <div class="max-w-6xl mx-auto px-4 py-8">
+     <!-- Header -->
+     <div class="mb-6">
       <%= link_to "← Back to Search History", searches_path, class: "text-blue-600 hover:text-blue-800 mb-4 inline-block" %>
 
       <div class="bg-white rounded-lg shadow p-6">
@@ -78,3 +79,5 @@ function toggleContent(button) {
   }
 }
 </script>
+
+

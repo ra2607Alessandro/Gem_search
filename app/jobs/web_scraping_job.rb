@@ -25,6 +25,9 @@ class WebScrapingJob < ApplicationJob
     # Always update document with results (success or failure)
     update_document(scraped_data)
     
+    # Broadcast progress after each scrape attempt
+    broadcast_scraping_progress(scraped_data)
+
     if scraped_data[:success]
       # Generate embeddings if content available
       generate_embeddings if @document.content_available?
@@ -105,6 +108,13 @@ class WebScrapingJob < ApplicationJob
     # Weight: 70% position, 30% content quality
     combined = (base_score * 0.7) + (content_factor * 0.3)
     [combined, 1.0].min.round(4)
+  end
+
+  def broadcast_scraping_progress(_scraped_data)
+    # Only broadcast; do not persist any details on the model
+    SearchesController.broadcast_status_update(@search.id)
+  rescue => e
+    Rails.logger.warn "[WebScrapingJob] Broadcast skipped: #{e.message}"
   end
   
   def handle_job_error(error)

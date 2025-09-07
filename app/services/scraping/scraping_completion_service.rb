@@ -9,33 +9,42 @@ class Scraping::ScrapingCompletionService
 
   def check_and_process
     return unless @search
-    return unless @search.scraping?
 
-    # Check if all documents have been processed (have scraped_at timestamp)
-    total_documents = @search.documents.count
+    # Calculate counts first (avoid NameError)
     scraped_documents = @search.documents.where.not(scraped_at: nil).count
+    total_documents   = @search.expected_documents_count || @search.documents.count
     documents_with_content = @search.documents.with_content.count
-    
+
     Rails.logger.info "[ScrapingCompletionService] Search #{@search.id}: " \
-                     "#{scraped_documents}/#{total_documents} scraped, " \
-                     "#{documents_with_content} with content"
-    
-    # Check if all documents have been processed
+                      "#{scraped_documents}/#{total_documents} scraped, " \
+                      "#{documents_with_content} with content."
+
+    # Allow checking even if not scraping, to handle race conditions
+    return if @search.completed? || @search.failed?
+
     if all_documents_processed?(total_documents, scraped_documents)
+      handle_completion(documents_with_content)
+    elsif process_stalled?
+      Rails.logger.warn "[ScrapingCompletionService] Search #{@search.id} appears stalled. Forcing completion."
       handle_completion(documents_with_content)
     else
       log_pending_documents
     end
   end
-  
+
   private
-  
+
   def all_documents_processed?(total, scraped)
-    total > 0 && scraped >= total
+    total.to_i > 0 && scraped >= total.to_i
   end
-  
+
+  def process_stalled?
+    # If it's been over 5 minutes and we're not done, force it.
+    @search.created_at < 5.minutes.ago
+  end
+
   def handle_completion(documents_with_content)
-    # If no documents have content but we have search results, 
+    # If no documents have content but we have search results,
     # try to generate response from snippets
     if documents_with_content == 0 && @search.search_results.any?
       Rails.logger.warn "[ScrapingCompletionService] No primary content scraped for search #{@search.id}. Falling back to snippets."
@@ -46,42 +55,46 @@ class Scraping::ScrapingCompletionService
       mark_as_failed_insufficient_content(documents_with_content)
     end
   end
-  
+
   def trigger_ai_generation
     Rails.logger.info "[ScrapingCompletionService] Triggering AI response generation for search #{@search.id}"
-    
+
+    # Use a new status to prevent re-triggering and show progress
     @search.update!(status: :processing)
     AiResponseGenerationJob.perform_later(@search.id)
   end
 
   def trigger_ai_generation_with_snippets
-    # Create minimal content from search result snippets
+    # This can be a fallback, but let's prioritize the main flow.
+    # For now, we'll let the main handle_completion logic decide.
+    Rails.logger.info "[ScrapingCompletionService] Attempting to use snippets for search #{@search.id}"
     @search.search_results.each do |result|
       doc = result.document
       if doc.content.blank? && result.snippet.present?
         doc.update!(content: "Title: #{doc.title}\nSnippet: #{result.snippet}")
       end
     end
-    
-    @search.update!(status: :processing)
-    AiResponseGenerationJob.perform_later(@search.id)
+    trigger_ai_generation # Re-use the main trigger
   end
-  
+
   def mark_as_failed_insufficient_content(content_count)
-    error_msg = "Insufficient content: only #{content_count} documents have content " \
-                "(minimum #{Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED} required)"
-    
-    Rails.logger.warn "[ScrapingCompletionService] #{error_msg}"
-    
+    error_msg = "Scraping complete, but insufficient content was gathered. " \
+                "Found content in #{content_count} source(s), " \
+                "but require at least #{Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED}."
+
+    Rails.logger.warn "[ScrapingCompletionService] Search #{@search.id}: #{error_msg}"
+
     @search.update!(
       status: :failed,
       error_message: error_msg
     )
+    # Broadcast final failure state
+    SearchesController.broadcast_status_update(@search.id)
   end
-  
+
   def log_pending_documents
     unscraped = @search.documents.where(scraped_at: nil).pluck(:url)
-    
+
     if unscraped.any?
       Rails.logger.info "[ScrapingCompletionService] Pending scrapes: #{unscraped.join(', ')}"
     end
