@@ -121,11 +121,12 @@ class Ai::ResponseGenerationService
 
   def generate_ai_response(context)
     messages = build_messages(context)
+    context_info = "search=#{@search.id} model=#{MODEL} tokens=#{@metrics[:total_tokens]}"
 
     response = nil
     begin
       Timeout.timeout(60) do
-        response = openai_client.chat(
+        response = $openai_client.chat(
           parameters: {
             model: MODEL,
             messages: messages,
@@ -136,12 +137,14 @@ class Ai::ResponseGenerationService
           }
         )
       end
+      Rails.logger.debug "[ResponseGenerationService] Raw OpenAI response (#{context_info}): #{response.inspect}"
     rescue Timeout::Error => e
-      Rails.logger.error "[ResponseGenerationService] OpenAI timeout: #{e.message}"
-      raise "OpenAI response timed out after 60s"
+      Rails.logger.error "[ResponseGenerationService] OpenAI timeout (#{context_info}): #{e.message}"
+      return { error: "OpenAI response timed out after 60s" }
     rescue StandardError => e
-      Rails.logger.error "[ResponseGenerationService] OpenAI API error: #{e.message}"
-      raise
+      Rails.logger.error "[ResponseGenerationService] OpenAI API error (#{context_info}): #{e.message}"
+      Rails.logger.error "[ResponseGenerationService] Raw response: #{response.inspect}" if response
+      return { error: e.message }
     end
 
     raw_content = response.dig('choices', 0, 'message', 'content')
@@ -319,3 +322,4 @@ class Ai::ResponseGenerationService
     Rails.application.config.x.openai_client
   end
 end
+
