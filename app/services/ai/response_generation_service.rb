@@ -15,34 +15,29 @@ class Ai::ResponseGenerationService
     @metrics = {}
   end
 
-  def generate_response
+   def generate_response
     validate_prerequisites!
 
-    
-       Rails.logger.info "[ResponseGenerationService] Starting for search #{@search.id}"
-      # Prepare context for the AI
-      context = prepare_truth_grounded_context
-    
+    Rails.logger.info "[ResponseGenerationService] Starting for search #{@search.id}"
+
+    # Prepare context for the AI
+    context = prepare_truth_grounded_context
+
     # Generate response
     response_data = generate_ai_response(context)
+    return response_data if response_data[:error]
 
-    unless response_data.present? && response_data[:response].present?
-      error_message = "AI response missing or malformed"
-      Rails.logger.error "[ResponseGenerationService] #{error_message}"
-      return { error: error_message }
-    end
-
-    # Create citations only if we have response data
-    create_citations(response_data[:citations]) if response_data.present? && response_data[:citations]&.any?
+    # Create citations
+    create_citations(response_data[:citations]) if response_data[:citations]&.any?
 
     Rails.logger.info "[ResponseGenerationService] Completed successfully"
 
     response_data
-    
+
   rescue StandardError => e
     Rails.logger.error "[ResponseGenerationService] Failed for search #{@search.id}: #{e.message}"
     Rails.logger.error e.backtrace.first(10).join("\n")
-    nil
+    { error: e.message }
   end
   
   private
@@ -309,6 +304,7 @@ class Ai::ResponseGenerationService
       )
     end
     
+
     @metrics[:citations_created] = citations_data.length
   rescue => e
     Rails.logger.error "[ResponseGenerationService] Citation creation failed: #{e.message}"
