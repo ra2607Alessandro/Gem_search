@@ -31,6 +31,8 @@ class AiResponseGenerationJob < ApplicationJob
         completed_at: Time.current
       )
 
+      SearchesController.broadcast_status_update(search.id)
+
       # Defer embedding generation until after response is ready
       search.documents.with_content.find_each do |doc|
         doc.generate_embedding!
