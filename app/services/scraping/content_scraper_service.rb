@@ -3,7 +3,9 @@ class Scraping::ContentScraperService
   require 'readability'
   require 'timeout'
   
-  TIMEOUT_SECONDS = 10
+  TIMEOUT_SECONDS = 5
+  MAX_RETRIES = 3
+  RETRY_BASE_DELAY = 5
   MIN_CONTENT_LENGTH = 50
   MAX_CONTENT_LENGTH = 50_000
 
@@ -20,15 +22,22 @@ class Scraping::ContentScraperService
       return youtube_service.extract_metadata
     end
 
-    Timeout.timeout(TIMEOUT_SECONDS) do
-      execute_scraping
-    end
+    attempts = 0
 
-  rescue Timeout::Error
-    error_response('Scraping timeout')
-  rescue StandardError => e
-    Rails.logger.error "[ContentScraperService] Error scraping #{@url}: #{e.message}"
-    error_response("Scraping failed: #{e.message}")
+    begin
+      return Timeout.timeout(TIMEOUT_SECONDS) { execute_scraping }
+    rescue Timeout::Error
+      attempts += 1
+      if attempts <= MAX_RETRIES
+        sleep(RETRY_BASE_DELAY * (2**(attempts - 1)))
+        retry
+      else
+        return error_response('Scraping timeout')
+      end
+    rescue StandardError => e
+      Rails.logger.error "[ContentScraperService] Error scraping #{@url}: #{e.message}"
+      return error_response("Scraping failed: #{e.message}")
+    end
   end
   
   private
