@@ -4,7 +4,10 @@ class EmbeddingGenerationJob < ApplicationJob
   retry_on StandardError, wait: 30.seconds, attempts: 2
 
   def perform(document_id)
+    Rails.logger.info "[EmbeddingGenerationJob] Starting for document_id: #{document_id}"
+    
     @document = Document.find(document_id)
+    Rails.logger.info "[EmbeddingGenerationJob] Found document: #{@document.id}, URL: #{@document.url}"
     
     return if @document.embedding.present?
     return unless @document.content_available?
@@ -21,8 +24,12 @@ class EmbeddingGenerationJob < ApplicationJob
       Rails.logger.warn "[EmbeddingGenerationJob] Invalid embedding generated"
     end
     
+  rescue ActiveRecord::RecordNotFound => e
+    Rails.logger.error "[EmbeddingGenerationJob] Document not found: #{document_id}"
+    raise
   rescue StandardError => e
-    Rails.logger.error "[EmbeddingGenerationJob] Failed: #{e.message}"
+    Rails.logger.error "[EmbeddingGenerationJob] Failed: #{e.class.name} - #{e.message}"
+    Rails.logger.error e.backtrace.first(5).join("\n")
     raise # Re-raise for retry
   end
 end

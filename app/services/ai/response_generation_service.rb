@@ -126,7 +126,7 @@ class Ai::ResponseGenerationService
     response = nil
     begin
       Timeout.timeout(60) do
-        response = $openai_client.chat(
+        response = openai_client.chat(
           parameters: {
             model: MODEL,
             messages: messages,
@@ -146,7 +146,7 @@ class Ai::ResponseGenerationService
       Rails.logger.error "[ResponseGenerationService] Raw response: #{response.inspect}" if response
       return { error: e.message }
     end
-
+  
     raw_content = response.dig('choices', 0, 'message', 'content')
     parse_response(raw_content, context[:sources])
   end
@@ -154,11 +154,10 @@ class Ai::ResponseGenerationService
 
   
   def build_messages(context)
-    system_prompt = build_truth_grounded_system_prompt
-    user_prompt   = build_user_prompt(context)
+    user_prompt = build_user_prompt(context)
     [
-      { role: 'system', content: system_prompt },
-      { role: 'user',   content: user_prompt }
+      { role: 'system', content: build_truth_grounded_system_prompt },  # Fix: use correct method name
+      { role: 'user', content: user_prompt }
     ]
   end
   

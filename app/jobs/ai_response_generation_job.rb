@@ -7,6 +7,7 @@ class AiResponseGenerationJob < ApplicationJob
     return unless search
 
     Rails.logger.info "[AiResponseGenerationJob] Starting AI generation for search #{search.id}"
+    Rails.logger.info "[AiResponseGenerationJob] Documents with content: #{search.documents.with_content.count}"
 
     unless Rails.application.config.x.openai_client
       Rails.logger.error "[AiResponseGenerationJob] OpenAI client not initialized!"
@@ -18,7 +19,9 @@ class AiResponseGenerationJob < ApplicationJob
     search.update!(status: :processing)
     SearchesController.broadcast_status_update(search.id) rescue nil
 
+    Rails.logger.info "[AiResponseGenerationJob] Calling ResponseGenerationService..."
     data = Ai::ResponseGenerationService.new(search).generate_response
+    Rails.logger.info "[AiResponseGenerationJob] Response data: #{data.inspect}"
 
     if data && data[:response].present?
       search.update!(
