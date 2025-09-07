@@ -247,6 +247,7 @@ class SearchesController < ApplicationController
 
   def self.broadcast_status_update(search_id)
     search = Search.find(search_id)
+    Rails.logger.info "[SearchesController] Broadcasting status update for search #{search.id}"
     Turbo::StreamsChannel.broadcast_replace_to(
       "search_#{search.id}",
       target: "search_status",                 # match _status.html.erb container

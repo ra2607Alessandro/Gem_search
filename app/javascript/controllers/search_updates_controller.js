@@ -24,10 +24,16 @@ export default class extends Controller {
 
     this.eventSource = new EventSource(streamUrl)
 
+    this.eventSource.onopen = this.handleOpen.bind(this)
     this.eventSource.onmessage = this.handleMessage.bind(this)
     this.eventSource.onerror = this.handleError.bind(this)
 
     console.log(`Connected to search stream: ${streamUrl}`)
+  }
+
+  // Successfully opened connection
+  handleOpen(event) {
+    console.log('Search stream connection opened', event)
   }
 
   // Disconnect from stream
@@ -64,7 +70,11 @@ export default class extends Controller {
 
   // Handle stream errors
   handleError(event) {
-    console.error('Search stream error:', event)
+    if (event?.target?.readyState === EventSource.CLOSED) {
+      console.error('Search stream connection closed', event)
+    } else {
+      console.error('Search stream error:', event)
+    }
 
     // Attempt to reconnect after a delay
     setTimeout(() => {
