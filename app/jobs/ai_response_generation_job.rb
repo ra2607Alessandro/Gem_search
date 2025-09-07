@@ -8,7 +8,7 @@ class AiResponseGenerationJob < ApplicationJob
 
     Rails.logger.info "[AiResponseGenerationJob] Starting AI generation for search #{search.id}"
 
-    unless $openai_client
+    unless Rails.application.config.x.openai_client
       Rails.logger.error "[AiResponseGenerationJob] OpenAI client not initialized!"
       search.update!(status: :failed, error_message: "OpenAI client not configured")
       SearchesController.broadcast_status_update(search.id) rescue nil
