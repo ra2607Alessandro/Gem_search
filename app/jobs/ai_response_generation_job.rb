@@ -41,6 +41,7 @@ class AiResponseGenerationJob < ApplicationJob
 
   private
 
+
   def handle_failure(search, msg)
     Rails.logger.error "[AiResponseGenerationJob] Failed for search #{search.id}: #{msg}"
     search.update!(status: :failed, error_message: msg)
