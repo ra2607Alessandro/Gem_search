@@ -26,6 +26,9 @@
       🕒 Gathering information from sources...
     <% elsif search&.processing? %>
       🤖 AI response is being generated... Please check back in a moment.
+    <% elsif search&.retryable? %>
+      ❌ AI response generation failed.
+      <%= link_to 'Retry AI generation', retry_ai_generation_search_path(search), data: { turbo_method: :post }, class: 'text-blue-600 underline hover:text-blue-800' %>
     <% elsif search&.failed? %>
       ❌ Failed to generate response. Please try again.
     <% else %>
