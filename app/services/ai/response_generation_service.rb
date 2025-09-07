@@ -163,6 +163,12 @@ class Ai::ResponseGenerationService
       end
     end
 
+    if response.is_a?(Hash) && response["error"]
+      error_msg = response.dig("error", "message") || "OpenAI API error"
+      Rails.logger.error "[ResponseGenerationService] OpenAI API returned error (#{context_info}): #{error_msg}"
+      return { error: error_msg }
+    end
+
     raw_content = response.dig('choices', 0, 'message', 'content')
     return { error: 'Empty response from OpenAI' } if raw_content.blank?
 

@@ -30,7 +30,7 @@
         <div>
           <h3 class="text-lg font-semibold text-gray-900" data-progress-target="status">AI response failed</h3>
           <p class="text-sm text-gray-600">
-            <%= search.error_message || "AI response generation failed. You can retry." %>
+            <%= search.error_message.presence || "AI response generation failed. You can retry." %>
           </p>
         </div>
       <% elsif search.failed? %>
@@ -42,7 +42,7 @@
         <div>
           <h3 class="text-lg font-semibold text-gray-900" data-progress-target="status">Search failed</h3>
           <p class="text-sm text-gray-600">
-            <%= search.error_message || "Something went wrong. Please try again." %>
+            <%= search.error_message.presence || "Something went wrong. Please try again." %>
           </p>
         </div>
       <% elsif search.scraping? %>
