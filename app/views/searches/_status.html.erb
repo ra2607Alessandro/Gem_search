@@ -21,6 +21,18 @@
             Found <%= search.search_results.count %> relevant sources
           </p>
         </div>
+      <% elsif search.retryable? %>
+        <div class="rounded-full h-5 w-5 bg-yellow-500 flex items-center justify-center">
+          <svg class="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900" data-progress-target="status">AI response failed</h3>
+          <p class="text-sm text-gray-600">
+            <%= search.error_message || "AI response generation failed. You can retry." %>
+          </p>
+        </div>
       <% elsif search.failed? %>
         <div class="rounded-full h-5 w-5 bg-red-500 flex items-center justify-center">
           <svg class="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -84,12 +96,12 @@
     </div>
   <% end %>
 
-  <% if search.failed? && search.documents.where.not(content: [nil, '']).exists? %>
+  <% if search.retryable? %>
     <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
       <p class="text-sm text-yellow-800">
         Some content was gathered before the error occurred. You can try to
-        <%= link_to 'force AI response generation', retry_ai_generation_search_path(search), 
-        data: { turbo_method: :post }, 
+        <%= link_to 'force AI response generation', retry_ai_generation_search_path(search),
+        data: { turbo_method: :post },
          class: "font-semibold underline hover:text-yellow-900" %>.
       </p>
     </div>

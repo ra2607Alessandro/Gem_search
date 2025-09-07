@@ -13,7 +13,7 @@ class Search::WebSearchService
     @api_key = ENV['SERPAPI_KEY']
   end
 
-  def search(query, num_results: 10)
+  def search(query, num_results: 5)
     validate_api_key!
     
   Rails.logger.info "[WebSearchService] Searching for: #{query}"

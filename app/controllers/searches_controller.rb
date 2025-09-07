@@ -76,7 +76,7 @@ class SearchesController < ApplicationController
   def retry_ai_generation
     @search = Search.find(params[:id])
     
-    if @search.scraping? || @search.failed?
+    if @search.scraping? || @search.retryable? || @search.failed?
       documents_with_content = @search.documents.where.not(content: [nil, ''])
       content_count = documents_with_content.count
     
@@ -91,7 +91,7 @@ class SearchesController < ApplicationController
         redirect_to @search, alert: 'Cannot generate AI response: No content has been successfully scraped.'
       end
     else
-      redirect_to @search, alert: "AI response can only be retried for 'scraping' or 'failed' searches."
+      redirect_to @search, alert: "AI response can only be retried for 'scraping' or 'retryable' searches."
     end
   end
 

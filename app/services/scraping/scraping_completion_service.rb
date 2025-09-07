@@ -19,10 +19,12 @@ class Scraping::ScrapingCompletionService
                       "#{scraped_documents}/#{total_documents} scraped, " \
                       "#{documents_with_content} with content."
 
-    # Allow checking even if not scraping, to handle race conditions
-    return if @search.completed? || @search.failed?
+    # Stop if processing already triggered
+    return if @search.completed? || @search.failed? || @search.processing? || @search.retryable?
 
-    if all_documents_processed?(total_documents, scraped_documents)
+    if documents_with_content >= Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED
+      trigger_ai_generation
+    elsif all_documents_processed?(total_documents, scraped_documents)
       handle_completion(documents_with_content)
     elsif process_stalled?
       Rails.logger.warn "[ScrapingCompletionService] Search #{@search.id} appears stalled. Forcing completion."

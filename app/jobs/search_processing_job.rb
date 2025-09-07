@@ -66,7 +66,7 @@ class SearchProcessingJob < ApplicationJob
       service = Search::WebSearchService.new
     end
     
-    results = service.search(@search.query, num_results: 10)
+    results = service.search(@search.query, num_results: 5)
 
     @metrics[:steps_completed] << :web_search
     @metrics[:search_results_count] = results.length
