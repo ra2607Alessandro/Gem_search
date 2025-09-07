@@ -41,7 +41,7 @@ class Ai::ResponseGenerationService
   private
   
   def validate_prerequisites!
-    unless $openai_client
+    unless openai_client
       raise "OpenAI client not configured"
     end
     
@@ -123,7 +123,7 @@ class Ai::ResponseGenerationService
     response = nil
     begin
       Timeout.timeout(60) do
-        response = $openai_client.chat(
+        response = openai_client.chat(
           parameters: {
             model: MODEL,
             messages: messages,
@@ -306,9 +306,13 @@ class Ai::ResponseGenerationService
   rescue => e
     Rails.logger.error "[ResponseGenerationService] Citation creation failed: #{e.message}"
   end
-  
+
   def estimate_tokens(text)
     # Rough estimation: ~4 characters per token
     (text.length / 4.0).ceil
+  end
+
+  def openai_client
+    Rails.application.config.x.openai_client
   end
 end

@@ -41,7 +41,7 @@ class Ai::EmbeddingService
   def generate_single_embedding(text)
     validate_client!
     
-    response = $openai_client.embeddings(
+    response = openai_client.embeddings(
       parameters: {
         model: MODEL,
         input: text,
@@ -119,7 +119,7 @@ class Ai::EmbeddingService
   end
   
   def validate_client!
-    if $openai_client.nil?
+    if openai_client.nil?
       raise EmbeddingError, "OpenAI client not initialized"
     end
   end
@@ -128,6 +128,10 @@ class Ai::EmbeddingService
     unless embedding.is_a?(Array) && embedding.length == DIMENSIONS
       raise EmbeddingError, "Invalid embedding format"
     end
+  end
+
+  def openai_client
+    Rails.application.config.x.openai_client
   end
   
   def handle_api_error(error)
