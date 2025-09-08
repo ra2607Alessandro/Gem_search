@@ -85,7 +85,7 @@ group :development, :test do
   gem 'factory_bot_rails'
   gem 'vcr'
   gem 'webmock'
-  gem 'dotenv-rails'  # Add this line
+  gem 'dotenv-rails'
 end
 
 
