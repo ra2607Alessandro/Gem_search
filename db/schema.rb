@@ -28,6 +28,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_09_05_100000) do
     t.text "url"
     t.text "title"
     t.text "content"
+    t.text "cleaned_content"
+    t.text "content_chunks", default: [], array: true
     t.datetime "scraped_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false

@@ -59,16 +59,21 @@ class WebScrapingJob < ApplicationJob
     @document.assign_attributes(
       title: scraped_data[:title].presence || @document.title,
       content: scraped_data[:success] ? scraped_data[:content] : nil,
+      cleaned_content: scraped_data[:success] ? scraped_data[:cleaned_content] : nil,
+      content_chunks: scraped_data[:success] ? scraped_data[:content_chunks] : [],
       scraped_at: Time.current
     )
-    
+
     # Add error tracking
-    if !scraped_data[:success]
+    unless scraped_data[:success]
       @document.content = nil  # Ensure no partial content
+      @document.cleaned_content = nil
+      @document.content_chunks = []
       Rails.logger.warn "[WebScrapingJob] Scraping failed for #{@document.url}: #{scraped_data[:error]}"
     end
-    
+
     @document.save!
+    @document.generate_embedding!
   end
   
   def update_relevance_score
