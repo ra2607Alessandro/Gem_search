@@ -1,11 +1,13 @@
 # app/services/scraping/fallback_content_service.rb
 class Scraping::FallbackContentService
     def self.generate_from_search_result(url, title, snippet)
+      cleaned = snippet.to_s.strip.squeeze(' ')
       {
         success: true,
         title: title,
-        content: build_content(url, title, snippet),
-        cleaned_content: snippet,
+        content: build_content(url, title, cleaned),
+        cleaned_content: cleaned,
+        content_chunks: cleaned.present? ? [cleaned] : [],
         url: url,
         scraped_at: Time.current
       }

@@ -223,11 +223,15 @@ class Scraping::ContentScraperService
   end
   
   def success_response(page, content)
+    limited = content[0...MAX_CONTENT_LENGTH]
+    cleaned = clean_text(limited)
+
     {
       success: true,
       title: extract_title(page),
-      content: content[0...MAX_CONTENT_LENGTH],
-      cleaned_content: clean_text(content[0...MAX_CONTENT_LENGTH]),
+      content: limited,
+      cleaned_content: cleaned,
+      content_chunks: chunk_content(cleaned),
       url: @url,
       scraped_at: Time.current
     }
@@ -239,6 +243,7 @@ class Scraping::ContentScraperService
       title: '',
       content: '',
       cleaned_content: '',
+      content_chunks: [],
       error: reason,
       url: @url,
       scraped_at: Time.current
@@ -261,5 +266,26 @@ class Scraping::ContentScraperService
   def clean_text(text)
     return '' if text.blank?
     text.strip.squeeze(' ').gsub(/[\r\n]+/, ' ')
+  end
+
+  def chunk_content(text, chunk_size: 1000)
+    return [] if text.blank?
+
+    sentences = text.split(/(?<=[.!?])\s+/)
+    chunks = []
+    current_chunk = ''
+
+    sentences.each do |sentence|
+      if (current_chunk + ' ' + sentence).strip.length > chunk_size
+        chunks << current_chunk.strip if current_chunk.present?
+        current_chunk = sentence
+      else
+        current_chunk += ' ' unless current_chunk.empty?
+        current_chunk += sentence
+      end
+    end
+
+    chunks << current_chunk.strip if current_chunk.present?
+    chunks
   end
 end
