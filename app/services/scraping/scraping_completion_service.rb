@@ -63,6 +63,7 @@ class Scraping::ScrapingCompletionService
 
     # Use a new status to prevent re-triggering and show progress
     @search.update!(status: :processing)
+    SearchesController.broadcast_status_update(@search.id)
     AiResponseGenerationJob.perform_later(@search.id)
   end
 
