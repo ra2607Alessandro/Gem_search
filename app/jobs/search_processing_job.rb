@@ -66,7 +66,9 @@ class SearchProcessingJob < ApplicationJob
       service = Search::WebSearchService.new
     end
     
-    results = service.search(@search.query, num_results: 5)
+    # Fetch a slightly larger set of results to improve coverage while
+    # still keeping scraping time reasonable
+    results = service.search(@search.query, num_results: 8)
 
     @metrics[:steps_completed] << :web_search
     @metrics[:search_results_count] = results.length
