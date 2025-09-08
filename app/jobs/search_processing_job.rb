@@ -9,8 +9,9 @@ class SearchProcessingJob < ApplicationJob
 
     Rails.logger.info "[SearchProcessingJob] Starting search #{search_id}: #{@search.query}"
 
-      # Update status to scraping
+      # Update status to scraping and broadcast to clients
       @search.update!(status: :scraping)
+      SearchesController.broadcast_status_update(@search.id)
 
       generate_query_embedding
     
@@ -27,8 +28,9 @@ class SearchProcessingJob < ApplicationJob
       @search.update!(status: :scraping)
     processed_count = process_search_results(search_results)
     
-    # Store expected document count for tracking
+    # Store expected document count for tracking and update results list
     @search.update!(expected_documents_count: processed_count)
+    SearchesController.broadcast_results_update(@search.id)
     
     log_metrics
     
@@ -126,6 +128,9 @@ class SearchProcessingJob < ApplicationJob
       # Still check for completion in case all docs are already scraped
       Scraping::ScrapingCompletionService.check(@search.id)
     end
+
+    # Broadcast updated results after each search result is processed
+    SearchesController.broadcast_results_update(@search.id)
   end
   
   def should_scrape_document?(document)
@@ -147,8 +152,9 @@ class SearchProcessingJob < ApplicationJob
       status: :failed,
       error_message: reason
     )
-    
+
     Rails.logger.error "[SearchProcessingJob] Search #{@search.id} failed: #{reason}"
+    SearchesController.broadcast_status_update(@search.id)
   end
   
   def handle_job_error(error)

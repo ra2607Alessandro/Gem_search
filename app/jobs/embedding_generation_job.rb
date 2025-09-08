@@ -14,7 +14,7 @@ class EmbeddingGenerationJob < ApplicationJob
     
     Rails.logger.info "[EmbeddingGenerationJob] Generating embedding for document #{document_id}"
     
-    service = Ai::EmbeddingService.new(@document.content)
+    service = Ai::EmbeddingService.new(@document.cleaned_content)
     embedding = service.call
     
     if embedding.present? && embedding.is_a?(Array) && embedding.length == 1536

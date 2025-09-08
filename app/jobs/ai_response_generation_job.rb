@@ -12,12 +12,12 @@ class AiResponseGenerationJob < ApplicationJob
     unless Rails.application.config.x.openai_client
       Rails.logger.error "[AiResponseGenerationJob] OpenAI client not initialized!"
       search.update!(status: :failed, error_message: "OpenAI client not configured")
-      SearchesController.broadcast_status_update(search.id) rescue nil
+      SearchesController.broadcast_status_update(search.id)
       return
     end
 
     search.update!(status: :processing)
-    SearchesController.broadcast_status_update(search.id) rescue nil
+    SearchesController.broadcast_status_update(search.id)
 
     Rails.logger.info "[AiResponseGenerationJob] Calling ResponseGenerationService..."
     data = Ai::ResponseGenerationService.new(search).generate_response
@@ -64,6 +64,6 @@ class AiResponseGenerationJob < ApplicationJob
     Rails.logger.error "[AiResponseGenerationJob] Failed for search #{search.id}: #{msg}"
     status = retryable ? :retryable : :failed
     search.update!(status: status, error_message: msg)
-    SearchesController.broadcast_status_update(search.id) rescue nil
+    SearchesController.broadcast_status_update(search.id)
   end
 end

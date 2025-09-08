@@ -87,15 +87,35 @@ class Ai::ResponseGenerationService
              .limit(5)
     end
     
-    # Build context with numbered sources
+    # Build context with numbered sources from document chunks
     sources = []
     total_tokens = 0
-    documents.each_with_index do |doc, index|
-      source_text = build_source_text(doc, index + 1)
-      source_tokens = estimate_tokens(source_text)
-      break if total_tokens + source_tokens > MAX_CONTEXT_LENGTH
-      sources << { number: index + 1, document: doc, text: source_text, search_result: @search.search_results.find_by(document: doc) }
-      total_tokens += source_tokens
+    max_chunks = documents.map { |d| d.content_chunks&.size.to_i }.max || 0
+    break_outer = false
+
+    0.upto(max_chunks - 1) do |chunk_idx|
+      documents.each do |doc|
+        chunk = (doc.content_chunks || [])[chunk_idx]
+        next unless chunk.present?
+
+        number = sources.length + 1
+        source_text = build_source_text(doc, number, chunk)
+        source_tokens = estimate_tokens(source_text)
+
+        if total_tokens + source_tokens > MAX_CONTEXT_LENGTH
+          break_outer = true
+          break
+        end
+
+        sources << {
+          number: number,
+          document: doc,
+          text: source_text,
+          search_result: @search.search_results.find_by(document: doc)
+        }
+        total_tokens += source_tokens
+      end
+      break if break_outer
     end
   
     @metrics[:sources_used] = sources.length
@@ -104,18 +124,17 @@ class Ai::ResponseGenerationService
     { query: @search.query, goal: @search.goal, rules: @search.rules, sources: sources }
   end
   
-  def build_source_text(document, number)
+  def build_source_text(document, number, chunk)
     # Limit content length per source
     max_length = 1000
-    content = document.content || ""
-    
+    content = chunk || ""
+
     truncated_content = if content.length > max_length
-      # Try to cut at sentence boundary
       content[0...max_length].sub(/[^.!?]*$/, '') + "..."
     else
       content
     end
-    
+
     "[#{number}] #{document.title}\nURL: #{document.url}\nContent: #{truncated_content}\n"
   end
   
@@ -369,7 +388,7 @@ class Ai::ResponseGenerationService
   def build_fallback_response(context)
     sources = context[:sources].first(3)
     response_lines = sources.map do |s|
-      snippet = s[:document].content.to_s[0...200].squish
+      snippet = s[:document].cleaned_content.to_s[0...200].squish
       "#{snippet} [#{s[:number]}]"
     end
     follow_ups = sources.map { |s| "What more can we learn about #{s[:document].title}?" }
@@ -381,7 +400,7 @@ class Ai::ResponseGenerationService
       {
         source_url: s[:document].url,
         source_title: s[:document].title,
-        snippet: s[:document].content.to_s[0...200],
+        snippet: s[:document].cleaned_content.to_s[0...200],
         search_result: s[:search_result],
         source_number: s[:number]
       }
