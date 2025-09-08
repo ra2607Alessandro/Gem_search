@@ -61,9 +61,19 @@ class Ai::ResponseGenerationService
     # Get documents with content, ordered by relevance
     documents = if @search.query_embedding.present?
       # Use semantic search for better relevance
-      Document.semantic_search(@search.query_embedding, limit: 5)
+      docs = Document.semantic_search(@search.query_embedding, limit: 5)
               .joins(:search_results)
               .where(search_results: { search_id: @search.id })
+
+      if docs.blank?
+          @search.documents
+            .with_content
+            .joins(:search_results)
+            .order('search_results.relevance_score DESC')
+            .limit(5)
+      else
+        docs
+      end
     else
       # Fallback to relevance score ordering
       @search.documents
@@ -76,34 +86,18 @@ class Ai::ResponseGenerationService
     # Build context with numbered sources
     sources = []
     total_tokens = 0
-    
     documents.each_with_index do |doc, index|
-      # Calculate tokens for this source
       source_text = build_source_text(doc, index + 1)
       source_tokens = estimate_tokens(source_text)
-      
-      # Stop if we'd exceed context limit
       break if total_tokens + source_tokens > MAX_CONTEXT_LENGTH
-      
-      sources << {
-        number: index + 1,
-        document: doc,
-        text: source_text,
-        search_result: @search.search_results.find_by(document: doc)
-      }
-      
+      sources << { number: index + 1, document: doc, text: source_text, search_result: @search.search_results.find_by(document: doc) }
       total_tokens += source_tokens
     end
-    
+  
     @metrics[:sources_used] = sources.length
     @metrics[:total_tokens] = total_tokens
-    
-    {
-      query: @search.query,
-      goal: @search.goal,
-      rules: @search.rules,
-      sources: sources
-    }
+  
+    { query: @search.query, goal: @search.goal, rules: @search.rules, sources: sources }
   end
   
   def build_source_text(document, number)
@@ -169,7 +163,7 @@ class Ai::ResponseGenerationService
       return { error: error_msg }
     end
 
-    raw_content = response.dig('choices', 0, 'message', 'content')
+    raw_content = extract_content_from_openai(response)
     return { error: 'Empty response from OpenAI' } if raw_content.blank?
 
     parse_response(raw_content, context[:sources])
@@ -334,6 +328,15 @@ class Ai::ResponseGenerationService
     @metrics[:citations_created] = citations_data.length
   rescue => e
     Rails.logger.error "[ResponseGenerationService] Citation creation failed: #{e.message}"
+  end
+
+  def extract_content_from_openai(resp)
+    return nil if resp.nil?
+    # Chat Completions
+    resp.dig('choices', 0, 'message', 'content') ||
+    # Responses API (some SDKs)
+    resp.dig('output_text') ||
+    resp.dig('output', 'choices', 0, 'message', 'content')
   end
 
   def estimate_tokens(text)

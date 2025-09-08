@@ -35,13 +35,13 @@ class AiResponseGenerationJob < ApplicationJob
 
       # Defer embedding generation until after response is ready
       search.documents.with_content.find_each do |doc|
-        doc.generate_embedding!
+        EmbeddingGenerationJob.perform_later(doc.id)
       end
 
       SearchesController.broadcast_ai_response_ready(search.id)
       Rails.logger.info "[AiResponseGenerationJob] Successfully completed AI generation for search #{search.id}"
     else
-      error_msg = data[:error] || "AI response generation failed to produce content."
+      error_msg = (data.is_a?(Hash) ? data[:error] : nil) || "AI response generation failed to produce content."
       search.update!(error_message: error_msg)
       handle_failure(search, error_msg, retryable: true)
     end

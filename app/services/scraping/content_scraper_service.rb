@@ -3,7 +3,7 @@ class Scraping::ContentScraperService
   require 'readability'
   require 'timeout'
   
-  TIMEOUT_SECONDS = 5
+  TIMEOUT_SECONDS = 25
   MAX_RETRIES = 3
   RETRY_BASE_DELAY = 5
   MIN_CONTENT_LENGTH = 50
