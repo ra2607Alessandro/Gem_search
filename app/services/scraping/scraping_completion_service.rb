@@ -1,6 +1,17 @@
 class Scraping::ScrapingCompletionService
+  attr_reader :search
+
   def self.check(search_id)
-    new(search_id).check_and_process
+    service = new(search_id)
+    service.check_and_process
+
+    if service.search && service.search.scraping? &&
+       service.search.documents.with_content.count >= Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED
+      Rails.logger.warn "[ScrapingCompletionService] Search #{service.search.id} met content threshold but remains scraping. Retrying AI generation."
+      ActiveSupport::Notifications.instrument("scraping.ai_response_manual_retry", search_id: service.search.id) do
+        AiResponseGenerationJob.perform_later(service.search.id)
+      end
+    end
   end
 
   def initialize(search_id)
@@ -63,7 +74,9 @@ class Scraping::ScrapingCompletionService
 
     # Use a new status to prevent re-triggering and show progress
     @search.update!(status: :processing)
-    AiResponseGenerationJob.perform_later(@search.id)
+    ActiveSupport::Notifications.instrument("scraping.ai_response_enqueued", search_id: @search.id) do
+      AiResponseGenerationJob.perform_later(@search.id)
+    end
   end
 
   def trigger_ai_generation_with_snippets
