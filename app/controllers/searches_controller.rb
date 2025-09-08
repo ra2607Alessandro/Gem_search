@@ -2,24 +2,7 @@ class SearchesController < ApplicationController
   before_action :find_search, only: [:show]
   before_action :authorize_search, only: [:show]
 
-  # Include ActionController::Live for streaming responses
-  include ActionController::Live
-
-  # Simple SSE (Server-Sent Events) implementation
-  class SSE
-    def initialize(stream, options = {})
-      @stream = stream
-      @retry = options[:retry] || 3000
-    end
-
-    def write(data)
-      @stream.write "data: #{data.to_json}\n\n"
-    end
-
-    def close
-      @stream.close
-    end
-  end
+  # Removed ActionController::Live and SSE implementation in favor of Turbo Streams
 
   def index
     @searches = Search.includes(:search_results)
@@ -145,30 +128,6 @@ class SearchesController < ApplicationController
       response: @search.ai_response,
       follow_up_questions: @search.follow_up_questions
     }
-  end
-
-  # Turbo Stream methods for real-time updates
-  def stream_search_status
-    search = Search.find(params[:id])
-    response.headers['Content-Type'] = 'text/event-stream'
-    response.headers['Cache-Control'] = 'no-cache'
-    sse = SSE.new(response.stream, retry: 300)
-    begin
-      loop do
-        search.reload
-        sse.write({
-          status: search.status,
-          progress: calculate_progress(search),
-          sources_found: search.search_results.count,
-          completed: (search.completed? || search.failed?)
-        })
-        break if search.completed? || search.failed?
-        sleep 2
-      end
-    rescue IOError
-    ensure
-      sse.close
-    end
   end
 
   private

@@ -27,6 +27,7 @@ class StaleSearchProcessingJob < ApplicationJob
             AiResponseGenerationJob.perform_later(search.id)
           else
             search.update!(status: :failed, error_message: "Search timed out with no content extracted")
+            SearchesController.broadcast_status_update(search.id)
           end
         end
       end

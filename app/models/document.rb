@@ -10,7 +10,7 @@ class Document < ApplicationRecord
   # Remove content validation - allow nil/empty content for failed scrapes
 
   scope :with_embeddings, -> { where.not(embedding: nil) }
-  scope :with_content, -> { where.not(content: [nil, '']) }
+  scope :with_content, -> { where.not(cleaned_content: [nil, '']) }
   scope :recently_scraped, -> { where('scraped_at > ?', 7.days.ago) }
 
   def self.semantic_search(query_embedding, limit: 10)
@@ -20,7 +20,7 @@ class Document < ApplicationRecord
   end
 
   def content_available?
-    content.present? && content.length > 50
+    cleaned_content.present? && cleaned_content.length > 50
   end
 
   def generate_embedding!

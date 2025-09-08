@@ -70,6 +70,7 @@ class Scraping::ScrapingCompletionService
   end
 
   def trigger_ai_generation
+
     Rails.logger.info "[ScrapingCompletionService] Triggering AI response generation for search #{@search.id}"
 
     # Use a new status to prevent re-triggering and show progress
@@ -77,6 +78,14 @@ class Scraping::ScrapingCompletionService
     ActiveSupport::Notifications.instrument("scraping.ai_response_enqueued", search_id: @search.id) do
       AiResponseGenerationJob.perform_later(@search.id)
     end
+
+    Rails.logger.info "[ScrapingCompletionService] Triggering AI response generation for search #{@search.id}"
+
+    # Use a new status to prevent re-triggering and show progress
+    @search.update!(status: :processing)
+    SearchesController.broadcast_status_update(@search.id)
+    AiResponseGenerationJob.perform_later(@search.id)
+
   end
 
   def trigger_ai_generation_with_snippets
