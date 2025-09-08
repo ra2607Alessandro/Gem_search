@@ -109,6 +109,7 @@ class WebScrapingJob < ApplicationJob
   def broadcast_scraping_progress(_scraped_data)
     # Only broadcast; do not persist any details on the model
     SearchesController.broadcast_status_update(@search.id)
+    SearchesController.broadcast_results_update(@search.id)
   rescue => e
     Rails.logger.warn "[WebScrapingJob] Broadcast skipped: #{e.message}"
   end
