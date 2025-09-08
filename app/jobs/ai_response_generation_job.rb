@@ -41,8 +41,11 @@ class AiResponseGenerationJob < ApplicationJob
       SearchesController.broadcast_ai_response_ready(search.id)
       Rails.logger.info "[AiResponseGenerationJob] Successfully completed AI generation for search #{search.id}"
     else
-      error_msg = (data.is_a?(Hash) ? data[:error] : nil) || "AI response generation failed to produce content."
-      search.update!(error_message: error_msg)
+      error_msg = if data.is_a?(Hash) && data[:error].present?
+        data[:error]
+      else
+        "Model returned empty content; retrying might succeed"
+      end
       handle_failure(search, error_msg, retryable: true)
     end
   rescue Ai::ResponseGenerationService::InsufficientSourcesError => e

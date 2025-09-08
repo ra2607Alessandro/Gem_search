@@ -164,7 +164,7 @@ RSpec.describe "Searches", type: :request do
       AiResponseGenerationJob.perform_now(search.id)
 
       search.reload
-      expect(search.status).to eq("scraping") # Should not be completed
+      expect(search.status).to eq("retryable")
       expect(search.ai_response).to be_nil
     end
   end
