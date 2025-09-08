@@ -127,9 +127,11 @@ class Ai::ResponseGenerationService
 
     response = nil
     attempts = 0
+    timeout_seconds = 60
+
     begin
       attempts += 1
-      Timeout.timeout(60) do
+      Timeout.timeout(timeout_seconds) do
         response = openai_client.chat(
           parameters: {
             model: MODEL,
@@ -145,10 +147,11 @@ class Ai::ResponseGenerationService
     rescue Timeout::Error => e
       Rails.logger.error "[ResponseGenerationService] OpenAI timeout (#{context_info}): #{e.message}"
       if attempts <= MAX_RETRIES
+        timeout_seconds = 90
         sleep(2 ** attempts)
         retry
       else
-        return { error: "OpenAI response timed out after 60s" }
+        return { error: "OpenAI response timed out after #{timeout_seconds}s" }
       end
     rescue StandardError => e
       Rails.logger.error "[ResponseGenerationService] OpenAI API error (#{context_info}): #{e.message}"
