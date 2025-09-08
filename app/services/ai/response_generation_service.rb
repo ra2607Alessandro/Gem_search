@@ -28,12 +28,16 @@ class Ai::ResponseGenerationService
     response_data = generate_ai_response(context)
     return response_data if response_data[:error]
 
-    # Create citations
-    create_citations(response_data[:citations]) if response_data[:citations]&.any?
+    if response_data[:response].blank?
+      log_blank_response(response_data)
+      response_data = build_fallback_response(context)
+    else
+      create_citations(response_data[:citations]) if response_data[:citations]&.any?
+    end
 
     Rails.logger.info "[ResponseGenerationService] Completed successfully"
 
-    response_data
+    response_data.except(:messages, :raw_body)
 
   rescue InsufficientSourcesError => e
     Rails.logger.warn "[ResponseGenerationService] Insufficient sources: #{e.message}"
@@ -164,9 +168,8 @@ class Ai::ResponseGenerationService
     end
 
     raw_content = extract_content_from_openai(response)
-    return { error: 'Empty response from OpenAI' } if raw_content.blank?
-
-    parse_response(raw_content, context[:sources])
+    parsed = parse_response(raw_content.to_s, context[:sources]) || { response: "", follow_up_questions: [], citations: [] }
+    parsed.merge(messages: messages, raw_body: response)
   end
 
 
@@ -350,6 +353,41 @@ class Ai::ResponseGenerationService
 
   def openai_client
     Rails.application.config.x.openai_client
+  end
+
+  def log_blank_response(data)
+    msg_preview = data[:messages].to_a.map { |m| { role: m[:role], content: m[:content].to_s[0...500] } }
+    Rails.logger.error(
+      "[ResponseGenerationService] Blank AI response for search #{@search.id}. " \
+      "sources_used=#{@metrics[:sources_used]} messages=#{msg_preview.inspect} raw_body=#{data[:raw_body].inspect}"
+    )
+  end
+
+  def build_fallback_response(context)
+    sources = context[:sources].first(3)
+    response_lines = sources.map do |s|
+      snippet = s[:document].content.to_s[0...200].squish
+      "#{snippet} [#{s[:number]}]"
+    end
+    follow_ups = sources.map { |s| "What more can we learn about #{s[:document].title}?" }
+    while follow_ups.length < 3
+      follow_ups << "What additional information is needed about #{@search.query}?"
+    end
+    follow_ups = follow_ups.first(3)
+    citations = sources.map do |s|
+      {
+        source_url: s[:document].url,
+        source_title: s[:document].title,
+        snippet: s[:document].content.to_s[0...200],
+        search_result: s[:search_result],
+        source_number: s[:number]
+      }
+    end
+    {
+      response: response_lines.join("\n"),
+      follow_up_questions: follow_ups,
+      citations: citations
+    }
   end
 end
 
