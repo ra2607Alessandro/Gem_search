@@ -90,12 +90,22 @@ class Ai::ResponseGenerationService
     # Build context with numbered sources from document chunks
     sources = []
     total_tokens = 0
-    max_chunks = documents.map { |d| d.content_chunks&.size.to_i }.max || 0
+    # Use in-memory fallback chunks when content_chunks are absent but cleaned_content exists
+    doc_chunks_map = {}
+    documents.each do |d|
+      chunks = d.content_chunks
+      if (chunks.nil? || chunks.empty?) && d.cleaned_content.present?
+        chunks = [d.cleaned_content.to_s]
+      end
+      doc_chunks_map[d.id] = chunks || []
+    end
+    max_chunks = doc_chunks_map.values.map(&:size).max || 0
     break_outer = false
 
     0.upto(max_chunks - 1) do |chunk_idx|
       documents.each do |doc|
-        chunk = (doc.content_chunks || [])[chunk_idx]
+        chunks = doc_chunks_map[doc.id] || []
+        chunk = chunks[chunk_idx]
         next unless chunk.present?
 
         number = sources.length + 1

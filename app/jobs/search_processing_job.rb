@@ -125,12 +125,40 @@ class SearchProcessingJob < ApplicationJob
       )
     else
       Rails.logger.info "[SearchProcessingJob] Skipping scrape for #{document.url} (recently scraped)"
+      # Ensure normalized content exists so the AI can use this document
+      ensure_normalized_content(document, result)
       # Still check for completion in case all docs are already scraped
       Scraping::ScrapingCompletionService.check(@search.id)
     end
 
     # Broadcast updated results after each search result is processed
     SearchesController.broadcast_results_update(@search.id)
+  end
+
+  def ensure_normalized_content(document, result)
+    return if document.cleaned_content.present?
+
+    snippet = result[:snippet].to_s.strip.gsub(/\s+/, ' ')
+    if snippet.present?
+      updates = {
+        cleaned_content: snippet,
+        content_chunks: [snippet]
+      }
+      if document.content.blank?
+        updates[:content] = "Title: #{document.title}\nSnippet: #{snippet}"
+      end
+      document.update!(updates)
+      document.generate_embedding!
+    elsif document.content.present?
+      cleaned = document.content.to_s.strip.gsub(/\s+/, ' ')
+      document.update!(
+        cleaned_content: cleaned,
+        content_chunks: cleaned.present? ? [cleaned] : []
+      )
+      document.generate_embedding!
+    end
+  rescue => e
+    Rails.logger.warn "[SearchProcessingJob] ensure_normalized_content skipped for #{document.url}: #{e.message}"
   end
   
   def should_scrape_document?(document)

@@ -74,6 +74,7 @@ class WebScrapingJob < ApplicationJob
 
     @document.save!
     @document.generate_embedding!
+    Rails.logger.info "[WebScrapingJob] Stored content for #{@document.id}: cleaned_length=#{@document.cleaned_content.to_s.length} chunks=#{@document.content_chunks.to_a.size} scraped_at=#{@document.scraped_at}"
   end
   
   def update_relevance_score

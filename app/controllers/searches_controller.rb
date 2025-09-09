@@ -60,8 +60,7 @@ class SearchesController < ApplicationController
     @search = Search.find(params[:id])
     
     if @search.scraping? || @search.retryable? || @search.failed?
-      documents_with_content = @search.documents.where.not(content: [nil, ''])
-      content_count = documents_with_content.count
+      content_count = @search.documents.with_content.count
     
       if content_count >= Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED
         Rails.logger.info "Manual retry triggered for search #{@search.id}. Found #{content_count} documents with content."

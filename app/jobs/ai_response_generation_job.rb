@@ -27,8 +27,7 @@ class AiResponseGenerationJob < ApplicationJob
       search.update!(
         ai_response: data[:response],
         follow_up_questions: data[:follow_up_questions],
-        status: :completed,
-        completed_at: Time.current
+        status: :completed
       )
 
       SearchesController.broadcast_status_update(search.id)

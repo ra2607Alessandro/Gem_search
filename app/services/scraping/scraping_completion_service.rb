@@ -52,8 +52,13 @@ class Scraping::ScrapingCompletionService
   end
 
   def process_stalled?
-    # If it's been over 5 minutes and we're not done, force it.
-    @search.created_at < 5.minutes.ago
+    # If it's been over threshold and we're not done, force it.
+    threshold = if ENV['REPRO_FAST_FALLBACK'] == '1'
+      5.seconds
+    else
+      5.minutes
+    end
+    @search.created_at < threshold.ago
   end
 
   def handle_completion(documents_with_content)
@@ -70,22 +75,15 @@ class Scraping::ScrapingCompletionService
   end
 
   def trigger_ai_generation
-
-    Rails.logger.info "[ScrapingCompletionService] Triggering AI response generation for search #{@search.id}"
-
-    # Use a new status to prevent re-triggering and show progress
-    @search.update!(status: :processing)
-    ActiveSupport::Notifications.instrument("scraping.ai_response_enqueued", search_id: @search.id) do
-      AiResponseGenerationJob.perform_later(@search.id)
-    end
-
     Rails.logger.info "[ScrapingCompletionService] Triggering AI response generation for search #{@search.id}"
 
     # Use a new status to prevent re-triggering and show progress
     @search.update!(status: :processing)
     SearchesController.broadcast_status_update(@search.id)
-    AiResponseGenerationJob.perform_later(@search.id)
 
+    ActiveSupport::Notifications.instrument("scraping.ai_response_enqueued", search_id: @search.id) do
+      AiResponseGenerationJob.perform_later(@search.id)
+    end
   end
 
   def trigger_ai_generation_with_snippets
@@ -94,8 +92,14 @@ class Scraping::ScrapingCompletionService
     Rails.logger.info "[ScrapingCompletionService] Attempting to use snippets for search #{@search.id}"
     @search.search_results.each do |result|
       doc = result.document
-      if doc.content.blank? && result.snippet.present?
-        doc.update!(content: "Title: #{doc.title}\nSnippet: #{result.snippet}")
+      if result.snippet.present?
+        cleaned = result.snippet.to_s.strip.squeeze(' ')
+        updates = {
+          content: "Title: #{doc.title}\nSnippet: #{cleaned}",
+          cleaned_content: cleaned,
+          content_chunks: cleaned.present? ? [cleaned] : []
+        }
+        doc.update!(updates)
       end
     end
     trigger_ai_generation # Re-use the main trigger
@@ -124,4 +128,3 @@ class Scraping::ScrapingCompletionService
     end
   end
 end
-

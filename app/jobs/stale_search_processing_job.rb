@@ -22,7 +22,7 @@ class StaleSearchProcessingJob < ApplicationJob
           # Force completion if truly stuck
           Rails.logger.error "Search #{search.id} is still stuck after check, forcing AI generation"
           
-          documents_with_content = search.documents.where.not(content: [nil, '']).count
+          documents_with_content = search.documents.with_content.count
           if documents_with_content > 0
             AiResponseGenerationJob.perform_later(search.id)
           else
