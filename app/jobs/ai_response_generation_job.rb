@@ -1,6 +1,6 @@
 class AiResponseGenerationJob < ApplicationJob
   queue_as :default
-  retry_on StandardError, wait: :exponentially_longer, attempts: 3
+  retry_on StandardError, wait: ->(executions) { (2**executions).seconds }, attempts: 3
 
   def perform(search_id)
     search = Search.find_by(id: search_id)

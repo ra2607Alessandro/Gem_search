@@ -215,13 +215,37 @@ class SearchesController < ApplicationController
     )
   end
 
+  # Broadcast updated results list to the search page
   def self.broadcast_results_update(search_id)
-    search = Search.find(search_id)
-    new.broadcast_search_results(search)
+    search = Search.includes(search_results: :document).find(search_id)
+    Turbo::StreamsChannel.broadcast_replace_to(
+      "search_#{search.id}",
+      target: "search_results",               # match _results.html.erb frame
+      partial: "searches/results",
+      locals: {
+        search_results: search.search_results.ordered_by_relevance,
+        search: search
+      }
+    )
   end
 
   def self.broadcast_ai_response_ready(search_id)
     search = Search.find(search_id)
-    new.broadcast_ai_response(search)
+    search_results = search.search_results.includes(:document).ordered_by_relevance
+    ai_response_data = {
+      search_results: search_results,
+      total_sources: search_results.count,
+      top_sources: search_results.limit(5),
+      response: search.ai_response,
+      follow_up_questions: search.follow_up_questions
+    }
+    Turbo::StreamsChannel.broadcast_replace_to(
+      "search_#{search.id}",
+      target: "ai_response",
+      partial: "searches/ai_response",
+      locals: { search: search, ai_response_data: ai_response_data }
+    )
   end
+
+  # Note: keep a single, explicit implementation to avoid privacy issues
 end

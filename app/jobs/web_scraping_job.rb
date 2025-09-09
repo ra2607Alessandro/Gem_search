@@ -1,7 +1,7 @@
 class WebScrapingJob < ApplicationJob
   queue_as :scraping
 
-  retry_on StandardError, wait: 5.seconds, attempts: 2
+  retry_on StandardError, wait: ->(executions) { (2**executions).seconds }, attempts: 3
 
   def perform(document_id, search_id, position, search_result_data)
     @document = Document.find(document_id)

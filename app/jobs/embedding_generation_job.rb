@@ -1,7 +1,7 @@
 class EmbeddingGenerationJob < ApplicationJob
   queue_as :default
 
-  retry_on StandardError, wait: 30.seconds, attempts: 2
+  retry_on StandardError, wait: ->(executions) { (2**executions).seconds }, attempts: 3
 
   def perform(document_id)
     Rails.logger.info "[EmbeddingGenerationJob] Starting for document_id: #{document_id}"
