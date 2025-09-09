@@ -143,6 +143,7 @@ app/services/
 - Include inline comments for complex logic
 - Maintain clear README instructions
 - Document API integrations and configuration
+- Always write and explain every single passage thinking the person who will review the code doesn't understand anything about code.  
 
 ### Performance Monitoring
 - Log search performance metrics
