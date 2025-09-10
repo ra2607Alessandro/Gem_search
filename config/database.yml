@@ -17,11 +17,16 @@ default: &default
   encoding: unicode
   # For details on connection pooling, see Rails configuration guide
   # https://guides.rubyonrails.org/configuring.html#database-pooling
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  pool: <%= Integer(ENV.fetch("RAILS_MAX_THREADS", 8)) %>
 
 
 development:
-  url: postgresql://alessandro@localhost:5432/gem_search_development
+  <<: *default 
+  database: gem_search_development
+  host: <%= ENV.fetch("PGHOST", "127.0.0.1") %>
+  username: <%= ENV.fetch("PGUSER", "alessandro") %>
+  port: <%= Integer(ENV.fetch("PGPORT", 5432)) %> # use your actual port (5432 or 5433)
+  pool: <%= Integer(ENV.fetch("RAILS_DB_POOL", 12)) %>
   # The specified database role being used to connect to PostgreSQL.
   # To create additional roles in PostgreSQL see `$ createuser --help`.
   # When left blank, PostgreSQL will use the default role. This is
@@ -55,6 +60,7 @@ development:
 test:
   <<: *default
   database: gem_search_test
+  port: <%= ENV.fetch("PGPORT", 5433) %>.
 
 # As with config/credentials.yml, you never want to store sensitive information,
 # like your database password, in your source code. If your source code is
@@ -94,3 +100,6 @@ production:
     <<: *primary_production
     database: gem_search_production_cable
     migrations_paths: db/cable_migrate
+    
+
+

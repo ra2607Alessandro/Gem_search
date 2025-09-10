@@ -1,4 +1,5 @@
 require_relative "../config/environment"
+require 'json'
 
 query = (ARGV.join(" ").presence || "ping")
 Current.request_id = SecureRandom.uuid
@@ -19,7 +20,14 @@ end
 if s.documents.with_content.count >= min_sources
   AiResponseGenerationJob.perform_now(s.id)
   s.reload
-  puts({ id: s.id, status: s.status, error: s.error_message }.inspect)
+  summary = {
+    id: s.id,
+    status: s.status,
+    error: s.error_message,
+    follow_up_questions: s.follow_up_questions
+  }
+  puts JSON.pretty_generate(summary)
+  puts "\nAI response:\n#{s.ai_response}\n"
 else
   # Attempt a single fallback via snippets, then try AI once
   Scraping::ScrapingCompletionService.check(s.id)
@@ -28,5 +36,13 @@ else
     AiResponseGenerationJob.perform_now(s.id)
     s.reload
   end
-  puts({ id: s.id, status: s.status, error: s.error_message, content_sources: s.documents.with_content.count }.inspect)
+  summary = {
+    id: s.id,
+    status: s.status,
+    error: s.error_message,
+    content_sources: s.documents.with_content.count,
+    follow_up_questions: s.follow_up_questions
+  }
+  puts JSON.pretty_generate(summary)
+  puts "\nAI response:\n#{s.ai_response}\n"
 end
