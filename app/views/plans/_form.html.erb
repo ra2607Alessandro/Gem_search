@@ -1,0 +1,31 @@
+<%= form_with(model: plan) do |form| %>
+  <% if plan.errors.any? %>
+    <div>
+      <h2><%= pluralize(plan.errors.count, "error") %> prohibited this plan from being saved:</h2>
+      <ul>
+        <% plan.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :name %>
+    <%= form.text_field :name %>
+  </div>
+
+  <div>
+    <%= form.label :price_cents %>
+    <%= form.number_field :price_cents %>
+  </div>
+
+  <div>
+    <%= form.label :interval %>
+    <%= form.text_field :interval %>
+  </div>
+
+  <div>
+    <%= form.submit %>
+  </div>
+<% end %>

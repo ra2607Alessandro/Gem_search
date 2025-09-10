@@ -75,6 +75,7 @@ gem 'google-apis-youtube_v3'
 # Performance and Monitoring
 gem 'lograge'
 gem 'rack-cors'
+gem 'devise'
 
 gem 'rack-attack'
 

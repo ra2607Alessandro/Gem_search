@@ -1,0 +1,27 @@
+<p>
+  <strong>User:</strong>
+  <%= @subscription.user_id %>
+</p>
+
+<p>
+  <strong>Plan:</strong>
+  <%= @subscription.plan_id %>
+</p>
+
+<p>
+  <strong>Status:</strong>
+  <%= @subscription.status %>
+</p>
+
+<p>
+  <strong>Billing:</strong>
+  <%= @subscription.billing_id %>
+</p>
+
+<p>
+  <strong>Current period end:</strong>
+  <%= @subscription.current_period_end %>
+</p>
+
+<%= link_to 'Edit', edit_subscription_path(@subscription) %> |
+<%= link_to 'Back', subscriptions_path %>

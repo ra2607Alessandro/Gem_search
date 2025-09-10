@@ -1,4 +1,38 @@
+
 <div>
   <h1 class="font-bold text-4xl">Home#index</h1>
   <p>Find me in app/views/home/index.html.erb</p>
+  <p><%= link_to 'View Pricing', pricing_path %></p>
+
+<div class="w-full">
+  <section class="min-h-[60vh] flex items-center justify-center bg-gray-50">
+    <div class="text-center max-w-3xl mx-auto px-4">
+      <h1 class="text-5xl font-bold text-gray-900 mb-6">Find answers with AI-powered search</h1>
+      <p class="text-lg text-gray-600 mb-8">
+        Gem Search scours the web and delivers natural language results with proper citations.
+      </p>
+      <%= link_to 'Start Searching', searches_path, class: 'inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition duration-200' %>
+    </div>
+  </section>
+
+  <section class="py-16 bg-white">
+    <div class="max-w-6xl mx-auto px-4">
+      <h2 class="text-3xl font-bold text-gray-900 text-center mb-12">Why Gem Search?</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="text-center">
+          <h3 class="text-xl font-semibold text-gray-900 mb-2">AI Powered</h3>
+          <p class="text-gray-600">Leverage advanced models to get concise answers.</p>
+        </div>
+        <div class="text-center">
+          <h3 class="text-xl font-semibold text-gray-900 mb-2">Cited Results</h3>
+          <p class="text-gray-600">Every answer includes references to its sources.</p>
+        </div>
+        <div class="text-center">
+          <h3 class="text-xl font-semibold text-gray-900 mb-2">Customizable</h3>
+          <p class="text-gray-600">Add goals or rules to tailor each search.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
 </div>

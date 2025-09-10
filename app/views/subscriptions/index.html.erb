@@ -1,0 +1,28 @@
+<h1>Subscriptions</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>User</th>
+      <th>Plan</th>
+      <th>Status</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @subscriptions.each do |subscription| %>
+      <tr>
+        <td><%= subscription.user_id %></td>
+        <td><%= subscription.plan_id %></td>
+        <td><%= subscription.status %></td>
+        <td>
+          <%= link_to 'Show', subscription %> |
+          <%= link_to 'Edit', edit_subscription_path(subscription) %> |
+          <%= link_to 'Destroy', subscription, data: { turbo_method: :delete, turbo_confirm: 'Are you sure?' } %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<%= link_to 'New Subscription', new_subscription_path %>
