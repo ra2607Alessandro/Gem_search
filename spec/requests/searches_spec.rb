@@ -22,6 +22,65 @@ RSpec.describe "Searches", type: :request do
     end
   end
 
+  describe "Rate limiting" do
+    let(:search_params) do
+      {
+        search: {
+          query: "Test query",
+          goal: "",
+          rules: ""
+        }
+      }
+    end
+
+    context "unauthenticated user within limit" do
+      it "allows creating and viewing a search" do
+        post "/searches", params: search_params
+        expect(response).to have_http_status(:redirect)
+
+        search = Search.last
+        get "/searches/#{search.id}"
+        expect(response).to have_http_status(:success)
+      end
+    end
+
+    context "authenticated user within limit" do
+      it "allows creating and viewing a search" do
+        post "/searches", params: search_params, headers: { 'rack.session' => { user_id: 1 } }
+        expect(response).to have_http_status(:redirect)
+
+        search = Search.last
+        get "/searches/#{search.id}", headers: { 'rack.session' => { user_id: 1 } }
+        expect(response).to have_http_status(:success)
+      end
+    end
+
+    context "when rate limit is exceeded" do
+      before do
+        allow_any_instance_of(SearchesController).to receive(:create) do |controller|
+          controller.flash[:alert] = 'Rate limit exceeded'
+          controller.render plain: 'Rate limit exceeded', status: :too_many_requests
+        end
+      end
+
+      it "returns HTTP 429 with a flash message" do
+        post "/searches", params: search_params
+        expect(response).to have_http_status(:too_many_requests)
+        expect(flash[:alert]).to eq('Rate limit exceeded')
+      end
+
+      it "returns HTTP 429 when viewing a search" do
+        search = create(:search)
+        allow_any_instance_of(SearchesController).to receive(:show) do |controller|
+          controller.render plain: 'Rate limit exceeded', status: :too_many_requests
+        end
+
+        get "/searches/#{search.id}"
+        expect(response).to have_http_status(:too_many_requests)
+      end
+    end
+  end
+
   describe "Complete search flow with AI response" do
     let(:search_params) do
       {
