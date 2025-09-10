@@ -22,6 +22,11 @@
     <%= javascript_importmap_tags %>
   </head>
 
+
+  <body>
+    <%= render 'layouts/navbar' %>
+    <main class="container mx-auto mt-28 px-5 flex">
+
   <body class="bg-gray-50">
     <nav class="fixed top-0 inset-x-0 bg-white shadow">
       <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -33,6 +38,7 @@
       </div>
     </nav>
     <main class="container mx-auto mt-28 px-5">
+
       <%= yield %>
     </main>
   </body>
