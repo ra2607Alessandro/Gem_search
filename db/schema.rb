@@ -11,9 +11,13 @@
 # It's strongly recommended that you check this file into your version control system.
 
 
+ActiveRecord::Schema[8.0].define(version: 2025_09_07_120000) do
+=======
+
 ActiveRecord::Schema[8.0].define(version: 2025_09_08_000200) do
 
 ActiveRecord::Schema[8.0].define(version: 2025_09_09_120000) do
+
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
@@ -40,6 +44,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_09_09_120000) do
     t.text "content_chunks", default: [], array: true
     t.index ["id", "scraped_at"], name: "index_documents_with_embeddings", where: "(embedding IS NOT NULL)"
     t.index ["scraped_at"], name: "index_documents_on_scraped_at"
+  end
+
+  create_table "plans", force: :cascade do |t|
+    t.string "name"
+    t.integer "daily_search_limit", default: 100, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "search_results", force: :cascade do |t|
