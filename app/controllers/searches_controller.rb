@@ -2,24 +2,7 @@ class SearchesController < ApplicationController
   before_action :find_search, only: [:show]
   before_action :authorize_search, only: [:show]
 
-  # Include ActionController::Live for streaming responses
-  include ActionController::Live
-
-  # Simple SSE (Server-Sent Events) implementation
-  class SSE
-    def initialize(stream, options = {})
-      @stream = stream
-      @retry = options[:retry] || 3000
-    end
-
-    def write(data)
-      @stream.write "data: #{data.to_json}\n\n"
-    end
-
-    def close
-      @stream.close
-    end
-  end
+  # Removed ActionController::Live and SSE implementation in favor of Turbo Streams
 
   def index
     @searches = Search.includes(:search_results)
@@ -77,8 +60,7 @@ class SearchesController < ApplicationController
     @search = Search.find(params[:id])
     
     if @search.scraping? || @search.retryable? || @search.failed?
-      documents_with_content = @search.documents.where.not(content: [nil, ''])
-      content_count = documents_with_content.count
+      content_count = @search.documents.with_content.count
     
       if content_count >= Ai::ResponseGenerationService::MIN_SOURCES_REQUIRED
         Rails.logger.info "Manual retry triggered for search #{@search.id}. Found #{content_count} documents with content."
@@ -145,30 +127,6 @@ class SearchesController < ApplicationController
       response: @search.ai_response,
       follow_up_questions: @search.follow_up_questions
     }
-  end
-
-  # Turbo Stream methods for real-time updates
-  def stream_search_status
-    search = Search.find(params[:id])
-    response.headers['Content-Type'] = 'text/event-stream'
-    response.headers['Cache-Control'] = 'no-cache'
-    sse = SSE.new(response.stream, retry: 300)
-    begin
-      loop do
-        search.reload
-        sse.write({
-          status: search.status,
-          progress: calculate_progress(search),
-          sources_found: search.search_results.count,
-          completed: (search.completed? || search.failed?)
-        })
-        break if search.completed? || search.failed?
-        sleep 2
-      end
-    rescue IOError
-    ensure
-      sse.close
-    end
   end
 
   private
@@ -256,13 +214,37 @@ class SearchesController < ApplicationController
     )
   end
 
+  # Broadcast updated results list to the search page
   def self.broadcast_results_update(search_id)
-    search = Search.find(search_id)
-    new.broadcast_search_results(search)
+    search = Search.includes(search_results: :document).find(search_id)
+    Turbo::StreamsChannel.broadcast_replace_to(
+      "search_#{search.id}",
+      target: "search_results",               # match _results.html.erb frame
+      partial: "searches/results",
+      locals: {
+        search_results: search.search_results.ordered_by_relevance,
+        search: search
+      }
+    )
   end
 
   def self.broadcast_ai_response_ready(search_id)
     search = Search.find(search_id)
-    new.broadcast_ai_response(search)
+    search_results = search.search_results.includes(:document).ordered_by_relevance
+    ai_response_data = {
+      search_results: search_results,
+      total_sources: search_results.count,
+      top_sources: search_results.limit(5),
+      response: search.ai_response,
+      follow_up_questions: search.follow_up_questions
+    }
+    Turbo::StreamsChannel.broadcast_replace_to(
+      "search_#{search.id}",
+      target: "ai_response",
+      partial: "searches/ai_response",
+      locals: { search: search, ai_response_data: ai_response_data }
+    )
   end
+
+  # Note: keep a single, explicit implementation to avoid privacy issues
 end

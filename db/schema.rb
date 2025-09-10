@@ -32,6 +32,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_09_05_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.vector "embedding"
+    t.text "cleaned_content"
+    t.text "content_chunks", default: [], array: true
     t.index ["id", "scraped_at"], name: "index_documents_with_embeddings", where: "(embedding IS NOT NULL)"
     t.index ["scraped_at"], name: "index_documents_on_scraped_at"
   end

@@ -1,6 +1,6 @@
 class AiResponseGenerationJob < ApplicationJob
   queue_as :default
-  retry_on StandardError, wait: :exponentially_longer, attempts: 3
+  retry_on StandardError, wait: ->(executions) { (2**executions).seconds }, attempts: 3
 
   def perform(search_id)
     search = Search.find_by(id: search_id)
@@ -12,12 +12,12 @@ class AiResponseGenerationJob < ApplicationJob
     unless Rails.application.config.x.openai_client
       Rails.logger.error "[AiResponseGenerationJob] OpenAI client not initialized!"
       search.update!(status: :failed, error_message: "OpenAI client not configured")
-      SearchesController.broadcast_status_update(search.id) rescue nil
+      SearchesController.broadcast_status_update(search.id)
       return
     end
 
     search.update!(status: :processing)
-    SearchesController.broadcast_status_update(search.id) rescue nil
+    SearchesController.broadcast_status_update(search.id)
 
     Rails.logger.info "[AiResponseGenerationJob] Calling ResponseGenerationService..."
     data = Ai::ResponseGenerationService.new(search).generate_response
@@ -27,22 +27,24 @@ class AiResponseGenerationJob < ApplicationJob
       search.update!(
         ai_response: data[:response],
         follow_up_questions: data[:follow_up_questions],
-        status: :completed,
-        completed_at: Time.current
+        status: :completed
       )
 
       SearchesController.broadcast_status_update(search.id)
 
       # Defer embedding generation until after response is ready
       search.documents.with_content.find_each do |doc|
-        doc.generate_embedding!
+        EmbeddingGenerationJob.perform_later(doc.id)
       end
 
       SearchesController.broadcast_ai_response_ready(search.id)
       Rails.logger.info "[AiResponseGenerationJob] Successfully completed AI generation for search #{search.id}"
     else
-      error_msg = data[:error] || "AI response generation failed to produce content."
-      search.update!(error_message: error_msg)
+      error_msg = if data.is_a?(Hash) && data[:error].present?
+        data[:error]
+      else
+        "Model returned empty content; retrying might succeed"
+      end
       handle_failure(search, error_msg, retryable: true)
     end
   rescue Ai::ResponseGenerationService::InsufficientSourcesError => e
@@ -61,6 +63,6 @@ class AiResponseGenerationJob < ApplicationJob
     Rails.logger.error "[AiResponseGenerationJob] Failed for search #{search.id}: #{msg}"
     status = retryable ? :retryable : :failed
     search.update!(status: status, error_message: msg)
-    SearchesController.broadcast_status_update(search.id) rescue nil
+    SearchesController.broadcast_status_update(search.id)
   end
 end

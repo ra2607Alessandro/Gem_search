@@ -13,7 +13,9 @@ class Search::WebSearchService
     @api_key = ENV['SERPAPI_KEY']
   end
 
-  def search(query, num_results: 5)
+  # Default to a slightly higher result count for a balance between
+  # coverage and scraping speed
+  def search(query, num_results: 8)
     validate_api_key!
     
   Rails.logger.info "[WebSearchService] Searching for: #{query}"

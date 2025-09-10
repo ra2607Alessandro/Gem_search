@@ -17,9 +17,10 @@ RSpec.describe Ai::ResponseGenerationService, type: :service do
         create(:document, content: 'abcde', search_results: [build(:search_result, search: search)])
       end
 
-      it 'returns an empty response error' do
+      it 'returns a fallback response with citations' do
         result = described_class.new(search).generate_response
-        expect(result).to eq(error: 'Empty response from OpenAI')
+        expect(result[:response]).to include('[1]')
+        expect(result[:follow_up_questions].length).to eq(3)
       end
     end
 

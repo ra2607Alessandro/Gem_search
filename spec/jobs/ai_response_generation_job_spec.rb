@@ -47,4 +47,15 @@ RSpec.describe AiResponseGenerationJob, type: :job do
       expect(search.error_message).to eq('too few')
     end
   end
+
+  context 'when generation returns blank response' do
+    let(:service) { instance_double(Ai::ResponseGenerationService, generate_response: {response: ''}) }
+
+    it 'marks search as retryable with default message' do
+      described_class.perform_now(search.id)
+      search.reload
+      expect(search).to be_retryable
+      expect(search.error_message).to eq('Model returned empty content; retrying might succeed')
+    end
+  end
 end

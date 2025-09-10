@@ -1,7 +1,7 @@
 class SearchProcessingJob < ApplicationJob
   queue_as :default
 
-  retry_on StandardError, wait: :exponentially_longer, attempts: 3
+  retry_on StandardError, wait: ->(executions) { (2**executions).seconds }, attempts: 3
 
   def perform(search_id)
     @search = Search.find(search_id)
@@ -9,8 +9,9 @@ class SearchProcessingJob < ApplicationJob
 
     Rails.logger.info "[SearchProcessingJob] Starting search #{search_id}: #{@search.query}"
 
-      # Update status to scraping
+      # Update status to scraping and broadcast to clients
       @search.update!(status: :scraping)
+      SearchesController.broadcast_status_update(@search.id)
 
       generate_query_embedding
     
@@ -27,8 +28,9 @@ class SearchProcessingJob < ApplicationJob
       @search.update!(status: :scraping)
     processed_count = process_search_results(search_results)
     
-    # Store expected document count for tracking
+    # Store expected document count for tracking and update results list
     @search.update!(expected_documents_count: processed_count)
+    SearchesController.broadcast_results_update(@search.id)
     
     log_metrics
     
@@ -66,7 +68,9 @@ class SearchProcessingJob < ApplicationJob
       service = Search::WebSearchService.new
     end
     
-    results = service.search(@search.query, num_results: 5)
+    # Fetch a slightly larger set of results to improve coverage while
+    # still keeping scraping time reasonable
+    results = service.search(@search.query, num_results: 8)
 
     @metrics[:steps_completed] << :web_search
     @metrics[:search_results_count] = results.length
@@ -121,9 +125,40 @@ class SearchProcessingJob < ApplicationJob
       )
     else
       Rails.logger.info "[SearchProcessingJob] Skipping scrape for #{document.url} (recently scraped)"
+      # Ensure normalized content exists so the AI can use this document
+      ensure_normalized_content(document, result)
       # Still check for completion in case all docs are already scraped
       Scraping::ScrapingCompletionService.check(@search.id)
     end
+
+    # Broadcast updated results after each search result is processed
+    SearchesController.broadcast_results_update(@search.id)
+  end
+
+  def ensure_normalized_content(document, result)
+    return if document.cleaned_content.present?
+
+    snippet = result[:snippet].to_s.strip.gsub(/\s+/, ' ')
+    if snippet.present?
+      updates = {
+        cleaned_content: snippet,
+        content_chunks: [snippet]
+      }
+      if document.content.blank?
+        updates[:content] = "Title: #{document.title}\nSnippet: #{snippet}"
+      end
+      document.update!(updates)
+      document.generate_embedding!
+    elsif document.content.present?
+      cleaned = document.content.to_s.strip.gsub(/\s+/, ' ')
+      document.update!(
+        cleaned_content: cleaned,
+        content_chunks: cleaned.present? ? [cleaned] : []
+      )
+      document.generate_embedding!
+    end
+  rescue => e
+    Rails.logger.warn "[SearchProcessingJob] ensure_normalized_content skipped for #{document.url}: #{e.message}"
   end
   
   def should_scrape_document?(document)
@@ -145,8 +180,9 @@ class SearchProcessingJob < ApplicationJob
       status: :failed,
       error_message: reason
     )
-    
+
     Rails.logger.error "[SearchProcessingJob] Search #{@search.id} failed: #{reason}"
+    SearchesController.broadcast_status_update(@search.id)
   end
   
   def handle_job_error(error)

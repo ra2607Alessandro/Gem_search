@@ -1,7 +1,7 @@
 class WebScrapingJob < ApplicationJob
   queue_as :scraping
 
-  retry_on StandardError, wait: 5.seconds, attempts: 2
+  retry_on StandardError, wait: ->(executions) { (2**executions).seconds }, attempts: 3
 
   def perform(document_id, search_id, position, search_result_data)
     @document = Document.find(document_id)
@@ -59,16 +59,22 @@ class WebScrapingJob < ApplicationJob
     @document.assign_attributes(
       title: scraped_data[:title].presence || @document.title,
       content: scraped_data[:success] ? scraped_data[:content] : nil,
+      cleaned_content: scraped_data[:success] ? scraped_data[:cleaned_content] : nil,
+      content_chunks: scraped_data[:success] ? scraped_data[:content_chunks] : [],
       scraped_at: Time.current
     )
-    
+
     # Add error tracking
-    if !scraped_data[:success]
+    unless scraped_data[:success]
       @document.content = nil  # Ensure no partial content
+      @document.cleaned_content = nil
+      @document.content_chunks = []
       Rails.logger.warn "[WebScrapingJob] Scraping failed for #{@document.url}: #{scraped_data[:error]}"
     end
-    
+
     @document.save!
+    @document.generate_embedding!
+    Rails.logger.info "[WebScrapingJob] Stored content for #{@document.id}: cleaned_length=#{@document.cleaned_content.to_s.length} chunks=#{@document.content_chunks.to_a.size} scraped_at=#{@document.scraped_at}"
   end
   
   def update_relevance_score
@@ -104,6 +110,7 @@ class WebScrapingJob < ApplicationJob
   def broadcast_scraping_progress(_scraped_data)
     # Only broadcast; do not persist any details on the model
     SearchesController.broadcast_status_update(@search.id)
+    SearchesController.broadcast_results_update(@search.id)
   rescue => e
     Rails.logger.warn "[WebScrapingJob] Broadcast skipped: #{e.message}"
   end

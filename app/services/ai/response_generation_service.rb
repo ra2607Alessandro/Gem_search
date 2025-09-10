@@ -28,12 +28,16 @@ class Ai::ResponseGenerationService
     response_data = generate_ai_response(context)
     return response_data if response_data[:error]
 
-    # Create citations
-    create_citations(response_data[:citations]) if response_data[:citations]&.any?
+    if response_data[:response].blank?
+      log_blank_response(response_data)
+      response_data = build_fallback_response(context)
+    else
+      create_citations(response_data[:citations]) if response_data[:citations]&.any?
+    end
 
     Rails.logger.info "[ResponseGenerationService] Completed successfully"
 
-    response_data
+    response_data.except(:messages, :raw_body)
 
   rescue InsufficientSourcesError => e
     Rails.logger.warn "[ResponseGenerationService] Insufficient sources: #{e.message}"
@@ -61,9 +65,19 @@ class Ai::ResponseGenerationService
     # Get documents with content, ordered by relevance
     documents = if @search.query_embedding.present?
       # Use semantic search for better relevance
-      Document.semantic_search(@search.query_embedding, limit: 5)
+      docs = Document.semantic_search(@search.query_embedding, limit: 5)
               .joins(:search_results)
               .where(search_results: { search_id: @search.id })
+
+      if docs.blank?
+          @search.documents
+            .with_content
+            .joins(:search_results)
+            .order('search_results.relevance_score DESC')
+            .limit(5)
+      else
+        docs
+      end
     else
       # Fallback to relevance score ordering
       @search.documents
@@ -73,51 +87,64 @@ class Ai::ResponseGenerationService
              .limit(5)
     end
     
-    # Build context with numbered sources
+    # Build context with numbered sources from document chunks
     sources = []
     total_tokens = 0
-    
-    documents.each_with_index do |doc, index|
-      # Calculate tokens for this source
-      source_text = build_source_text(doc, index + 1)
-      source_tokens = estimate_tokens(source_text)
-      
-      # Stop if we'd exceed context limit
-      break if total_tokens + source_tokens > MAX_CONTEXT_LENGTH
-      
-      sources << {
-        number: index + 1,
-        document: doc,
-        text: source_text,
-        search_result: @search.search_results.find_by(document: doc)
-      }
-      
-      total_tokens += source_tokens
+    # Use in-memory fallback chunks when content_chunks are absent but cleaned_content exists
+    doc_chunks_map = {}
+    documents.each do |d|
+      chunks = d.content_chunks
+      if (chunks.nil? || chunks.empty?) && d.cleaned_content.present?
+        chunks = [d.cleaned_content.to_s]
+      end
+      doc_chunks_map[d.id] = chunks || []
     end
-    
+    max_chunks = doc_chunks_map.values.map(&:size).max || 0
+    break_outer = false
+
+    0.upto(max_chunks - 1) do |chunk_idx|
+      documents.each do |doc|
+        chunks = doc_chunks_map[doc.id] || []
+        chunk = chunks[chunk_idx]
+        next unless chunk.present?
+
+        number = sources.length + 1
+        source_text = build_source_text(doc, number, chunk)
+        source_tokens = estimate_tokens(source_text)
+
+        if total_tokens + source_tokens > MAX_CONTEXT_LENGTH
+          break_outer = true
+          break
+        end
+
+        sources << {
+          number: number,
+          document: doc,
+          text: source_text,
+          search_result: @search.search_results.find_by(document: doc)
+        }
+        total_tokens += source_tokens
+      end
+      break if break_outer
+    end
+  
     @metrics[:sources_used] = sources.length
     @metrics[:total_tokens] = total_tokens
-    
-    {
-      query: @search.query,
-      goal: @search.goal,
-      rules: @search.rules,
-      sources: sources
-    }
+  
+    { query: @search.query, goal: @search.goal, rules: @search.rules, sources: sources }
   end
   
-  def build_source_text(document, number)
+  def build_source_text(document, number, chunk)
     # Limit content length per source
     max_length = 1000
-    content = document.content || ""
-    
+    content = chunk || ""
+
     truncated_content = if content.length > max_length
-      # Try to cut at sentence boundary
       content[0...max_length].sub(/[^.!?]*$/, '') + "..."
     else
       content
     end
-    
+
     "[#{number}] #{document.title}\nURL: #{document.url}\nContent: #{truncated_content}\n"
   end
   
@@ -129,9 +156,11 @@ class Ai::ResponseGenerationService
 
     response = nil
     attempts = 0
+    timeout_seconds = 60
+
     begin
       attempts += 1
-      Timeout.timeout(60) do
+      Timeout.timeout(timeout_seconds) do
         response = openai_client.chat(
           parameters: {
             model: MODEL,
@@ -147,10 +176,11 @@ class Ai::ResponseGenerationService
     rescue Timeout::Error => e
       Rails.logger.error "[ResponseGenerationService] OpenAI timeout (#{context_info}): #{e.message}"
       if attempts <= MAX_RETRIES
+        timeout_seconds = 90
         sleep(2 ** attempts)
         retry
       else
-        return { error: "OpenAI response timed out after 60s" }
+        return { error: "OpenAI response timed out after #{timeout_seconds}s" }
       end
     rescue StandardError => e
       Rails.logger.error "[ResponseGenerationService] OpenAI API error (#{context_info}): #{e.message}"
@@ -169,10 +199,9 @@ class Ai::ResponseGenerationService
       return { error: error_msg }
     end
 
-    raw_content = response.dig('choices', 0, 'message', 'content')
-    return { error: 'Empty response from OpenAI' } if raw_content.blank?
-
-    parse_response(raw_content, context[:sources])
+    raw_content = extract_content_from_openai(response)
+    parsed = parse_response(raw_content.to_s, context[:sources]) || { response: "", follow_up_questions: [], citations: [] }
+    parsed.merge(messages: messages, raw_body: response)
   end
 
 
@@ -336,6 +365,15 @@ class Ai::ResponseGenerationService
     Rails.logger.error "[ResponseGenerationService] Citation creation failed: #{e.message}"
   end
 
+  def extract_content_from_openai(resp)
+    return nil if resp.nil?
+    # Chat Completions
+    resp.dig('choices', 0, 'message', 'content') ||
+    # Responses API (some SDKs)
+    resp.dig('output_text') ||
+    resp.dig('output', 'choices', 0, 'message', 'content')
+  end
+
   def estimate_tokens(text)
     # Rough estimation: ~4 characters per token
     (text.length / 4.0).ceil
@@ -347,6 +385,41 @@ class Ai::ResponseGenerationService
 
   def openai_client
     Rails.application.config.x.openai_client
+  end
+
+  def log_blank_response(data)
+    msg_preview = data[:messages].to_a.map { |m| { role: m[:role], content: m[:content].to_s[0...500] } }
+    Rails.logger.error(
+      "[ResponseGenerationService] Blank AI response for search #{@search.id}. " \
+      "sources_used=#{@metrics[:sources_used]} messages=#{msg_preview.inspect} raw_body=#{data[:raw_body].inspect}"
+    )
+  end
+
+  def build_fallback_response(context)
+    sources = context[:sources].first(3)
+    response_lines = sources.map do |s|
+      snippet = s[:document].cleaned_content.to_s[0...200].squish
+      "#{snippet} [#{s[:number]}]"
+    end
+    follow_ups = sources.map { |s| "What more can we learn about #{s[:document].title}?" }
+    while follow_ups.length < 3
+      follow_ups << "What additional information is needed about #{@search.query}?"
+    end
+    follow_ups = follow_ups.first(3)
+    citations = sources.map do |s|
+      {
+        source_url: s[:document].url,
+        source_title: s[:document].title,
+        snippet: s[:document].cleaned_content.to_s[0...200],
+        search_result: s[:search_result],
+        source_number: s[:number]
+      }
+    end
+    {
+      response: response_lines.join("\n"),
+      follow_up_questions: follow_ups,
+      citations: citations
+    }
   end
 end
 
