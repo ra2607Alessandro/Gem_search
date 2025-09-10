@@ -14,6 +14,15 @@ class SearchesController < ApplicationController
   end
 
   def create
+    if defined?(current_user) && current_user&.respond_to?(:remaining_searches) &&
+       current_user.remaining_searches.to_i <= 0
+      respond_to do |format|
+        format.html { render 'shared/limit_reached', status: :too_many_requests }
+        format.turbo_stream { render 'shared/limit_reached', status: :too_many_requests }
+      end
+      return
+    end
+
     @search = Search.new(search_params)
     @search.user_ip = request.remote_ip
 
