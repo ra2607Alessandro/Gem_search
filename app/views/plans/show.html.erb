@@ -1,0 +1,17 @@
+<p>
+  <strong>Name:</strong>
+  <%= @plan.name %>
+</p>
+
+<p>
+  <strong>Price (cents):</strong>
+  <%= @plan.price_cents %>
+</p>
+
+<p>
+  <strong>Interval:</strong>
+  <%= @plan.interval %>
+</p>
+
+<%= link_to 'Edit', edit_plan_path(@plan) %> |
+<%= link_to 'Back', plans_path %>

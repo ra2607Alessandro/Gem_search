@@ -26,6 +26,11 @@ Rails.application.routes.draw do
     get 'searches', to: 'searches#index'
     root to: 'searches#index'
   end
+
+  resources :plans
+  resources :subscriptions
+  post 'billing/callback', to: 'billing#callback'
+  get 'pricing', to: 'plans#index', as: :pricing
   
   # PWA routes (optional)
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
