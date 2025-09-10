@@ -1,6 +1,7 @@
 class SearchesController < ApplicationController
   before_action :find_search, only: [:show]
   before_action :authorize_search, only: [:show]
+  before_action :enforce_rate_limit, only: :create
 
   # Removed ActionController::Live and SSE implementation in favor of Turbo Streams
 
@@ -13,6 +14,15 @@ class SearchesController < ApplicationController
   end
 
   def create
+    if defined?(current_user) && current_user&.respond_to?(:remaining_searches) &&
+       current_user.remaining_searches.to_i <= 0
+      respond_to do |format|
+        format.html { render 'shared/limit_reached', status: :too_many_requests }
+        format.turbo_stream { render 'shared/limit_reached', status: :too_many_requests }
+      end
+      return
+    end
+
     @search = Search.new(search_params)
     @search.user_ip = request.remote_ip
 
@@ -78,6 +88,13 @@ class SearchesController < ApplicationController
   end
 
   private
+
+  def enforce_rate_limit
+    allowed = RateLimiter.enforce!(current_user: (respond_to?(:current_user) ? current_user : nil), ip: request.remote_ip)
+    return if allowed
+
+    redirect_to searches_path, alert: "Daily search limit exceeded."
+  end
 
   def search_params
     params.require(:search).permit(:query, :goal, :rules)

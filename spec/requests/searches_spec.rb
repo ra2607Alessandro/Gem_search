@@ -22,6 +22,7 @@ RSpec.describe "Searches", type: :request do
     end
   end
 
+
   describe "Rate limiting" do
     let(:search_params) do
       {
@@ -78,6 +79,18 @@ RSpec.describe "Searches", type: :request do
         get "/searches/#{search.id}"
         expect(response).to have_http_status(:too_many_requests)
       end
+
+  describe "POST /searches when rate limit exceeded" do
+    it "renders limit reached page" do
+      user = double("User", remaining_searches: 0)
+      allow_any_instance_of(SearchesController).to receive(:current_user).and_return(user)
+
+      post "/searches", params: { search: { query: "test" } }
+
+      expect(response).to have_http_status(:too_many_requests)
+      expect(response.body).to include("Search limit reached")
+      expect(response.body).to include("Upgrade")
+
     end
   end
 

@@ -75,6 +75,9 @@ gem 'google-apis-youtube_v3'
 # Performance and Monitoring
 gem 'lograge'
 gem 'rack-cors'
+gem 'devise'
+
+gem 'rack-attack'
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

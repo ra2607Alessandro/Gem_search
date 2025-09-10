@@ -1,9 +1,10 @@
 Rails.application.routes.draw do
   # Health check
   get "up" => "rails/health#show", as: :rails_health_check
-  
- 
-  
+
+
+  devise_for :users
+
   # Search interface
   resources :searches, only: [:index, :create, :show] do
     resources :search_results, only: [:index]
@@ -25,6 +26,11 @@ Rails.application.routes.draw do
     get 'searches', to: 'searches#index'
     root to: 'searches#index'
   end
+
+  resources :plans
+  resources :subscriptions
+  post 'billing/callback', to: 'billing#callback'
+  get 'pricing', to: 'plans#index', as: :pricing
   
   # PWA routes (optional)
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest

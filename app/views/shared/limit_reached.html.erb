@@ -1,0 +1,10 @@
+<div class="min-h-screen flex items-center justify-center bg-gray-50">
+  <div class="bg-white rounded-lg shadow p-8 text-center">
+    <h1 class="text-2xl font-semibold mb-4">Search limit reached</h1>
+    <p class="mb-6 text-gray-600">You've used all your available searches.</p>
+    <% upgrade_link = main_app.respond_to?(:pricing_path) ? main_app.pricing_path : '#' %>
+    <%= link_to 'Upgrade', upgrade_link,
+                class: 'bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded' %>
+  </div>
+</div>
+
