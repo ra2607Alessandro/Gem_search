@@ -22,12 +22,30 @@
     <%= javascript_importmap_tags %>
   </head>
 
+
   <body>
+
     <nav class="p-4 bg-gray-200 fixed top-0 w-full">
       <%= link_to 'Home', root_path, class: 'mr-4' %>
       <%= link_to 'Pricing', pricing_path, class: 'mr-4' %>
     </nav>
+
+    <%= render 'layouts/navbar' %>
+
     <main class="container mx-auto mt-28 px-5 flex">
+
+  <body class="bg-gray-50">
+    <nav class="fixed top-0 inset-x-0 bg-white shadow">
+      <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <%= link_to 'Gem Search', root_path, class: 'text-xl font-semibold text-gray-900 hover:text-blue-600' %>
+        <div class="space-x-6">
+          <%= link_to 'Pricing', '#', class: 'text-gray-600 hover:text-blue-600' %>
+          <%= link_to 'Login', '#', class: 'text-gray-600 hover:text-blue-600' %>
+        </div>
+      </div>
+    </nav>
+    <main class="container mx-auto mt-28 px-5">
+
       <%= yield %>
     </main>
   </body>

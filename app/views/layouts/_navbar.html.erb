@@ -1,0 +1,14 @@
+<nav class="fixed top-0 left-0 right-0 bg-white shadow">
+  <div class="container mx-auto flex justify-between items-center p-4">
+    <%= link_to 'Gem Search', root_path, class: 'font-bold' %>
+    <div>
+      <% if user_signed_in? %>
+        <%= link_to 'Logout', destroy_user_session_path, method: :delete, class: 'mr-4' %>
+      <% else %>
+        <%= link_to 'Sign up', new_user_registration_path, class: 'mr-4' %>
+        <%= link_to 'Log in', new_user_session_path %>
+      <% end %>
+    </div>
+  </div>
+</nav>
+
