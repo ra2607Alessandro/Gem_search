@@ -5,7 +5,11 @@
       <p class="text-lg text-gray-600 mb-8">
         Gem is an AI search assistant that scours the web and delivers natural language results with proper citations.
       </p>
-      <%= link_to 'Start Searching', searches_path, class: 'inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition duration-200' %>
+      <% if user_signed_in? %>
+        <%= link_to 'Start Searching', searches_path, class: 'inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition duration-200' %>
+      <% else %>
+        <%= link_to 'Start Searching', new_user_session_path, class: 'inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition duration-200' %>
+      <% end %>
     </div>
   </section>
 

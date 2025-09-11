@@ -1,28 +1,39 @@
-<h1>Pricing</h1>
+<div class="max-w-5xl mx-auto py-8">
+  <h1 class="text-3xl font-bold text-gray-900 text-center mb-8">Pricing</h1>
 
-<table>
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Price (cents)</th>
-      <th>Interval</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    <% @plans.each do |plan| %>
-      <tr>
-        <td><%= plan.name %></td>
-        <td><%= plan.price_cents %></td>
-        <td><%= plan.interval %></td>
-        <td>
-          <%= link_to 'Show', plan %> |
-          <%= link_to 'Edit', edit_plan_path(plan) %> |
-          <%= link_to 'Destroy', plan, data: { turbo_method: :delete, turbo_confirm: 'Are you sure?' } %>
-        </td>
-      </tr>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <% @plans.order(Arel.sql("CASE WHEN name='Free' THEN 0 ELSE 1 END")) .each do |plan| %>
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-baseline justify-between">
+          <h2 class="text-xl font-semibold text-gray-900"><%= plan.name %></h2>
+          <div class="text-2xl font-bold text-gray-900">
+            <%= format_price_cents(plan.price_cents) %>
+            <% if plan.interval == 'month' && plan.price_cents.to_i > 0 %>
+              <span class="text-sm text-gray-500">/month</span>
+            <% end %>
+          </div>
+        </div>
+        <p class="mt-2 text-gray-600"><%= quota_label_for(plan) %></p>
+
+        <div class="mt-6">
+          <% if user_signed_in? %>
+            <% current = (current_user.current_plan&.name == plan.name) %>
+            <% if current && plan.name == 'Pro' %>
+              <%= link_to 'Manage Billing', billing_portal_path, data: { turbo: false }, class: 'inline-block bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded' %>
+            <% elsif current %>
+              <span class="inline-block bg-gray-100 text-gray-600 font-semibold py-2 px-4 rounded">Current Plan</span>
+            <% elsif plan.name == 'Pro' %>
+              <%= button_to 'Upgrade', billing_checkout_path, method: :post, data: { turbo: false }, class: 'inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded' %>
+            <% end %>
+          <% else %>
+            <%= link_to 'Sign in to upgrade', new_user_session_path, class: 'inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded' %>
+          <% end %>
+        </div>
+      </div>
     <% end %>
-  </tbody>
-</table>
+  </div>
 
-<%= link_to 'New Plan', new_plan_path %>
+  <div class="text-center mt-6">
+    <%= link_to 'Admin: New Plan', new_plan_path, class: 'text-sm text-gray-500 underline' %>
+  </div>
+</div>

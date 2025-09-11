@@ -1,4 +1,5 @@
 class SearchesController < ApplicationController
+  before_action :authenticate_user!, only: [:index, :create, :show]
   before_action :find_search, only: [:show]
   before_action :authorize_search, only: [:show]
   before_action :enforce_rate_limit, only: :create
@@ -6,9 +7,11 @@ class SearchesController < ApplicationController
   # Removed ActionController::Live and SSE implementation in favor of Turbo Streams
 
   def index
-    @searches = Search.includes(:search_results)
-                      .order(created_at: :desc)
-                      .limit(50)
+    @searches = Search.for_user(current_user)
+                  .includes(:search_results)
+                  .order(created_at: :desc)
+                  .limit(50)
+
 
     @search_stats = calculate_search_stats
   end
@@ -25,6 +28,7 @@ class SearchesController < ApplicationController
 
     @search = Search.new(search_params)
     @search.user_ip = request.remote_ip
+    @search.user = current_user if respond_to?(:current_user) && current_user.present?
 
     if @search.save
       # The SearchProcessingJob will be triggered by the after_create callback
@@ -37,7 +41,7 @@ class SearchesController < ApplicationController
     else
       respond_to do |format|
         format.html do
-          @searches = Search.order(created_at: :desc).limit(50)
+          @searches = Search.for_user(current_user).order(created_at: :desc).limit(50)
           @search_stats = calculate_search_stats
           render :index, status: :unprocessable_entity
         end
@@ -106,35 +110,38 @@ class SearchesController < ApplicationController
     redirect_to searches_path, alert: 'Search not found.'
   end
 
-  def authorize_search
-    # For now, allow access to all searches
-    # In production, you might want to restrict by IP or session
-    return true
+ 
 
-    # More restrictive authorization (uncomment when needed):
-    # unless @search.user_ip == request.remote_ip
-    #   redirect_to searches_path, alert: 'You can only view your own searches.'
-    # end
-  end
+    def authorize_search
+      # Only allow the owner to view the search
+      if @search.user_id != current_user.id
+        redirect_to searches_path, alert: 'You can only view your own searches.'
+      end
+    end
+    
+  
 
-  def calculate_search_stats
-    total_searches = Search.count
-    completed_searches = Search.where(status: :completed).count
-    processing_searches = Search.where(status: :processing).count
-    failed_searches = Search.where(status: :failed).count
-
-    recent_searches = Search.where('created_at >= ?', 24.hours.ago)
-    searches_last_24h = recent_searches.count
-
-    {
-      total: total_searches,
-      completed: completed_searches,
-      processing: processing_searches,
-      failed: failed_searches,
-      last_24h: searches_last_24h,
-
-      completion_rate: total_searches > 0 ? (completed_searches.to_f / total_searches * 100).round(1) : 0    }
-  end
+    def calculate_search_stats
+      scope = Search.where(user_id: current_user.id)
+    
+      total_searches      = scope.count
+      completed_searches  = scope.where(status: :completed).count
+      processing_searches = scope.where(status: :processing).count
+      failed_searches     = scope.where(status: :failed).count
+    
+      recent_searches     = scope.where('created_at >= ?', 24.hours.ago)
+      searches_last_24h   = recent_searches.count
+    
+      {
+        total: total_searches,
+        completed: completed_searches,
+        processing: processing_searches,
+        failed: failed_searches,
+        last_24h: searches_last_24h,
+        completion_rate: total_searches > 0 ? (completed_searches.to_f / total_searches * 100).round(1) : 0
+      }
+    end
+    
 
   def prepare_ai_response_data
     @ai_response_data = {
@@ -262,6 +269,7 @@ class SearchesController < ApplicationController
       locals: { search: search, ai_response_data: ai_response_data }
     )
   end
-
   # Note: keep a single, explicit implementation to avoid privacy issues
 end
+
+

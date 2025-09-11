@@ -1,7 +1,10 @@
 <div class="min-h-screen flex items-center justify-center bg-gray-50">
   <div class="bg-white rounded-lg shadow p-8 text-center">
-    <h1 class="text-2xl font-semibold mb-4">Search limit reached</h1>
-    <p class="mb-6 text-gray-600">You've used all your available searches.</p>
+    <h1 class="text-2xl font-semibold mb-4">Monthly search limit reached</h1>
+    <p class="mb-2 text-gray-600">You've used all your available searches for this month.</p>
+    <% if defined?(current_user) && current_user.respond_to?(:monthly_searches_used) %>
+      <p class="mb-6 text-gray-500">Usage: <%= current_user.monthly_searches_used %> of <%= current_user.monthly_search_quota %></p>
+    <% end %>
     <% upgrade_link = main_app.respond_to?(:pricing_path) ? main_app.pricing_path : '#' %>
     <%= link_to 'Upgrade', upgrade_link,
                 class: 'bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded' %>

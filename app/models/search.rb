@@ -2,6 +2,10 @@
 class Search < ApplicationRecord
   has_many :search_results, dependent: :destroy
   has_many :documents, through: :search_results
+  belongs_to :user, optional: true
+
+  scope :for_user, ->(user) { where(user_id: user.id) }
+
   
   has_neighbors :query_embedding, dimensions: 1536
   

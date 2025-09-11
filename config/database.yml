@@ -21,12 +21,18 @@ default: &default
 
 
 development:
-  <<: *default 
-  database: gem_search_development
-  host: <%= ENV.fetch("PGHOST", "127.0.0.1") %>
-  username: <%= ENV.fetch("PGUSER", "alessandro") %>
-  port: <%= Integer(ENV.fetch("PGPORT", 5432)) %> # use your actual port (5432 or 5433)
-  pool: <%= Integer(ENV.fetch("RAILS_DB_POOL", 12)) %>
+  primary:
+    <<: *default 
+    database: gem_search_development
+    host: <%= ENV.fetch("PGHOST", "127.0.0.1") %>
+    username: <%= ENV.fetch("PGUSER", "alessandro") %>
+    port: <%= Integer(ENV.fetch("PGPORT", 5432)) %> # use your actual port (5432 or 5433)
+    pool: <%= Integer(ENV.fetch("RAILS_DB_POOL", 12)) %>
+
+  cable:
+    <<: *default
+    database: gem_search_development_cable
+    migrations_paths: db/cable_migrate
   # The specified database role being used to connect to PostgreSQL.
   # To create additional roles in PostgreSQL see `$ createuser --help`.
   # When left blank, PostgreSQL will use the default role. This is
@@ -58,9 +64,16 @@ development:
 # re-generated from your development database when you run "rake".
 # Do not set this db to the same as development or production.
 test:
-  <<: *default
-  database: gem_search_test
-  port: <%= ENV.fetch("PGPORT", 5433) %>.
+  primary:
+    <<: *default
+    database: gem_search_test
+    host: <%= ENV.fetch("PGHOST", "127.0.0.1") %>
+    username: <%= ENV.fetch("PGUSER", "alessandro") %>
+    port: <%= Integer(ENV.fetch("PGPORT", 5433)) %>
+  cable:
+    <<: *default
+    database: gem_search_test_cable
+    migrations_paths: db/cable_migrate
 
 # As with config/credentials.yml, you never want to store sensitive information,
 # like your database password, in your source code. If your source code is

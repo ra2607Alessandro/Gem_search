@@ -1,15 +1,10 @@
 class RateLimiter
   def self.enforce!(current_user: nil, ip:)
-    plan = if current_user&.respond_to?(:plan) && current_user.plan
-             current_user.plan
-           else
-             Plan.default
-           end
+    plan = current_user ? current_user.current_plan : Plan.default
+    limit = plan.daily_search_limit.to_i
 
-    limit = plan.daily_search_limit
-
-    search_scope = if current_user&.respond_to?(:searches)
-                     current_user.searches
+    search_scope = if current_user
+                     Search.where(user_id: current_user.id)
                    else
                      Search.where(user_ip: ip)
                    end

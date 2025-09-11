@@ -30,6 +30,10 @@ Rails.application.routes.draw do
   resources :plans
   resources :subscriptions
   post 'billing/callback', to: 'billing#callback'
+  post 'billing/checkout', to: 'billing#create_checkout_session', as: :billing_checkout
+  get  'billing/portal', to: 'billing#portal', as: :billing_portal
+  get  'billing/confirm', to: 'billing#confirm', as: :billing_confirm
+  post 'stripe/webhook', to: 'billing#webhook'
   get 'pricing', to: 'plans#index', as: :pricing
   
   # PWA routes (optional)

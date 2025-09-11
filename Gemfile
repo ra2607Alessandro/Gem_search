@@ -23,6 +23,9 @@ gem "turbo-rails"
 # Hotwire's modest JavaScript framework [https://stimulus.hotwired.dev]
 gem "stimulus-rails"
 
+# Action Cable DB-backed pub/sub
+gem "solid_cable"
+
 # Use Tailwind CSS [https://github.com/rails/tailwindcss-rails]
 gem "tailwindcss-rails"
 
@@ -77,7 +80,10 @@ gem 'lograge'
 gem 'rack-cors'
 gem 'devise'
 
-gem 'rack-attack'
+  gem 'rack-attack'
+  
+  # Payments
+  gem 'stripe'
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

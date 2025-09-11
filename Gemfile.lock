@@ -435,6 +435,11 @@ GEM
       faraday (>= 0.17.5, < 3.a)
       jwt (>= 1.5, < 4.0)
       multi_json (~> 1.10)
+    solid_cable (3.0.12)
+      actioncable (>= 7.2)
+      activejob (>= 7.2)
+      activerecord (>= 7.2)
+      railties (>= 7.2)
     solid_queue (1.2.1)
       activejob (>= 7.1)
       activerecord (>= 7.1)
@@ -445,6 +450,7 @@ GEM
     stimulus-rails (1.3.4)
       railties (>= 6.0.0)
     stringio (3.1.7)
+    stripe (15.5.0)
     tailwindcss-rails (4.3.0)
       railties (>= 7.0.0)
       tailwindcss-ruby (~> 4.0)
@@ -542,8 +548,10 @@ DEPENDENCIES
   ruby-readability
   sanitize
   selenium-webdriver
+  solid_cable
   solid_queue
   stimulus-rails
+  stripe
   tailwindcss-rails
   tiktoken_ruby
   turbo-rails

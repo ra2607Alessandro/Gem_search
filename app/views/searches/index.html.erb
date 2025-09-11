@@ -9,10 +9,10 @@
     <% if defined?(current_user) && current_user&.respond_to?(:remaining_searches) %>
       <div class="text-center mb-4">
         <span class="text-sm text-gray-600">
-          Remaining searches: <%= current_user.remaining_searches %>
+          Remaining searches this month: <%= remaining_label_for(current_user) %>
         </span>
         <% if current_user.respond_to?(:search_quota) && current_user.search_quota.to_i > 0 &&
-              (current_user.remaining_searches.to_f / current_user.search_quota) < 0.2 %>
+              (current_user.remaining_monthly_searches.to_f / current_user.search_quota) < 0.2 %>
           <% upgrade_link = main_app.respond_to?(:pricing_path) ? main_app.pricing_path : '#' %>
           <%= link_to 'Upgrade', upgrade_link,
                       class: 'ml-2 text-sm text-blue-600 hover:text-blue-800 underline' %>
