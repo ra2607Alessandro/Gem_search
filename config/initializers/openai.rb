@@ -1,7 +1,7 @@
 require "openai"
 
-api_key = Rails.application.credentials.openai_api_key.presence ||
-          ENV["OPENAI_API_KEY"].presence
+api_key = ENV["OPENAI_API_KEY"].presence ||
+          Rails.application.credentials.openai_api_key.presence
 
 if api_key.blank?
   message = "[OpenAI] OPENAI_API_KEY missing – AI responses will fail"
